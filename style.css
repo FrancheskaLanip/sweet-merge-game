@@ -299,6 +299,43 @@ button { font: inherit; cursor: pointer; }
   .icon-btn { width: 40px; height: 40px; border-radius: 13px; font-size: 1.2rem; }
 }
 
+/* ---------- bakery orders ---------- */
+.orders {
+  display: flex; align-items: center; gap: 6px;
+  max-width: 420px; min-height: 46px; margin: 0 auto 8px; padding: 4px 6px;
+  background: rgba(255,255,255,.55); border: 2px dashed #ffb3d1; border-radius: 16px;
+}
+.orders-tag {
+  flex: none; display: flex; flex-direction: column; align-items: center; gap: 1px;
+  font-size: .56rem; font-weight: 800; text-transform: uppercase; letter-spacing: .08em; color: var(--pink-d);
+  --detail: #ffe3ef;
+}
+.orders-tag .ic { width: 1.8em; height: 1.8em; }
+.order-list { flex: 1; min-width: 0; display: flex; gap: 6px; }
+.order-list.empty::before { content: "Orders will appear here"; flex: 1; font-size: .76rem; font-weight: 700; opacity: .5; text-align: center; padding: 6px 0; }
+.ticket {
+  position: relative; flex: 1 1 0; min-width: 0; display: flex; align-items: center; gap: 6px; overflow: hidden;
+  padding: 3px 7px 6px 4px; text-align: left;
+  background: #fffdf3; border: 2px solid var(--gold); border-radius: 12px; box-shadow: 0 2px 0 var(--gold-d);
+  animation: ticketIn .35s ease-out;
+}
+.ticket img { width: 30px; height: 30px; flex: none; object-fit: contain; }
+.t-text { display: flex; flex-direction: column; line-height: 1.15; min-width: 0; }
+.t-name { font-size: .7rem; font-weight: 800; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.t-prog { font-size: .8rem; font-weight: 800; color: var(--pink-d); }
+.t-bar { position: absolute; left: 0; bottom: 0; height: 4px; width: 100%; background: #7ed58f; }
+.ticket.low { border-color: #ff6a8a; box-shadow: 0 2px 0 #d9407b; }
+.ticket.low .t-bar { background: #ff6a8a; }
+.ticket.ping { animation: ticketPing .4s ease-out; }
+.ticket.done { animation: ticketDone .45s ease-in forwards; border-color: #7ed58f; box-shadow: 0 2px 0 #4caf6a; }
+.ticket.missed { animation: ticketMiss .45s ease-in forwards; }
+.ticket.demo { flex: none; width: 160px; animation: none; }
+@keyframes ticketIn { from { transform: translateY(-8px) scale(.9); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes ticketPing { 40% { transform: scale(1.08); } }
+@keyframes ticketDone { to { transform: translateY(-10px) scale(1.1); opacity: 0; } }
+@keyframes ticketMiss { to { transform: translateX(10px); opacity: 0; } }
+.orders-done { margin: 4px 0 0 !important; font-size: .85rem; font-weight: 700; opacity: .85; }
+
 /* ---------- phones: everything fits on one screen, no scrolling to reach the buttons ---------- */
 .controls { position: sticky; bottom: 0; }
 
@@ -310,7 +347,7 @@ button { font: inherit; cursor: pointer; }
   .stat .value { font-size: 1.15rem; }
   .stat .value.small { font-size: .88rem; padding: 3px 0; }
   #next { width: 34px !important; height: 34px !important; border-radius: 10px; }
-  .stage { padding: 5px; border-radius: 22px; border-width: 2px; width: min(100%, 420px, calc((100vh - 206px) * 0.625)); }
+  .stage { padding: 5px; border-radius: 22px; border-width: 2px; width: min(100%, 420px, calc((100vh - 246px) * 0.625)); }
   #game { border-radius: 16px; }
   .overlay { inset: 5px; border-radius: 16px; padding: 6px; }
   .controls { padding: 4px 0 2px; }
@@ -320,6 +357,14 @@ button { font: inherit; cursor: pointer; }
   .dock { margin: 6px 0 2px; gap: 6px; }
   .icon-btn { width: 38px; height: 38px; border-radius: 12px; font-size: 1.1rem; box-shadow: 0 3px 0 #4a3190; }
   .ladder-wrap { margin-top: 8px; }
+  .orders { min-height: 40px; margin-bottom: 6px; padding: 3px 5px; border-radius: 14px; }
+  .orders-tag span { display: none; }
+  .orders-tag .ic { width: 1.5em; height: 1.5em; }
+  .ticket { padding: 2px 5px 5px 3px; gap: 4px; }
+  .ticket img { width: 24px; height: 24px; }
+  .t-name { font-size: .62rem; }
+  .t-prog { font-size: .72rem; }
+  .order-list.empty::before { font-size: .7rem; padding: 4px 0; }
 
   /* smaller panels so they fit inside the board */
   .panel { padding: 26px 16px 12px; border-radius: 20px; }
@@ -351,18 +396,36 @@ button { font: inherit; cursor: pointer; }
 
 @media (max-width: 600px) and (max-height: 820px) {
   header.top { display: none; }
-  .stage { width: min(100%, 420px, calc((100vh - 176px) * 0.625)); }
+  .stage { width: min(100%, 420px, calc((100vh - 216px) * 0.625)); }
 }
 
 @supports (height: 100svh) {
   @media (max-width: 600px) {
-    .stage { width: min(100%, 420px, calc((100svh - 206px) * 0.625)); }
+    .stage { width: min(100%, 420px, calc((100svh - 246px) * 0.625)); }
   }
   @media (max-width: 600px) and (max-height: 820px) {
-    .stage { width: min(100%, 420px, calc((100svh - 176px) * 0.625)); }
+    .stage { width: min(100%, 420px, calc((100svh - 216px) * 0.625)); }
   }
 }
 
 @media (prefers-reduced-motion: reduce) { #toast { transition: none; }
   .art-arrow { animation: none; }
+  .ticket, .ticket.ping { animation: none; }
   .power-btn.gain { animation: none; } }
+
+/* ---------- achievements + specials ---------- */
+.book-panel { max-height: 100%; overflow-y: auto; }
+.ach-h { margin: 10px 0 2px; font-size: 1rem; color: var(--pink-d); }
+.ach-h span { font-size: .8rem; opacity: .8; }
+.title-line { margin: 0 0 6px !important; font-size: .85rem; }
+.title-line strong { color: var(--pink-d); }
+.ach-list { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; text-align: left; }
+.ach { display: flex; gap: 5px; align-items: flex-start; padding: 5px 6px; border-radius: 10px; background: rgba(255,255,255,.55); border: 2px solid #eadcf0; opacity: .6; }
+.ach .ic { width: 1.4em; height: 1.4em; flex: none; color: #cbbcd6; }
+.ach b { display: block; font-size: .72rem; line-height: 1.1; }
+.ach small { display: block; font-size: .6rem; line-height: 1.15; opacity: .85; }
+.ach.got { opacity: 1; border-color: var(--gold); background: #fffbe8; }
+.ach.got .ic { color: var(--gold); filter: drop-shadow(0 1px 0 var(--gold-d)); }
+.tut-img { width: 64px; height: 64px; object-fit: contain; }
+.tut-img.gold { filter: drop-shadow(0 0 8px #ffcf4a); }
+.fever-demo { display: inline-block; width: 90px; height: 14px; margin-left: 10px; border-radius: 4px; border: 2px solid #fff; background: linear-gradient(90deg, #ff9ec6, #ffcf5a); box-shadow: 0 0 0 2px #7a2f66; }

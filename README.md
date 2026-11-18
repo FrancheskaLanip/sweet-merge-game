@@ -4,6 +4,21 @@ A cute physics merge game made with plain HTML, CSS, and JavaScript. Drop sweets
 
 **Live demo:** https://YOUR-USERNAME.github.io/YOUR-REPO/
 
+## Screenshots
+Taken on a phone-sized screen (the game is made for phones and computers).
+
+<p align="center">
+  <img src="screenshots/1-start-screen.png" width="200" alt="Start screen" />
+  <img src="screenshots/2-gameplay.png" width="200" alt="Gameplay" />
+  <img src="screenshots/3-collection.png" width="200" alt="Collection book" />
+</p>
+<p align="center">
+  <img src="screenshots/4-leaderboard.png" width="200" alt="Leaderboard" />
+  <img src="screenshots/5-game-over.png" width="200" alt="Game over" />
+</p>
+
+(The other names on the leaderboard in these pictures are sample names.)
+
 ## How to Play
 0. On the start screen, type your name and pick a level (**Easy**, **Normal**, or **Hard**), then press **Start Game**.
 1. Move your mouse (or drag your finger) to aim.
@@ -33,6 +48,10 @@ Each level has its own best score and its own leaderboard.
 - Combo system: quick merges in a row give a x2 to x5 score multiplier
 - Screen shake and flash on big merges, a pause button (or press `P`), and auto-pause when you leave the tab
 - Daily Challenge: everyone gets the same sweets in the same order each day (the day is counted in UTC), with its own daily leaderboard and a day streak
+- **Bakery Orders (signature feature):** customers post orders above the jar, for example "2x Dango". Make that sweet by merging before the timer runs out to earn bonus points, and every second finished order also gives a free power-up. Missed orders cost nothing, they just disappear. Order timers pause with the game, and the Daily Challenge uses the same orders for everyone.
+- **Fever mode:** every merge fills the Fever bar at the top of the jar. When it is full you get 8 seconds of **double points**, and sweets crossing the line do not end the game. When Fever ends, sweets still above the line pop away so you are never punished unfairly.
+- **Special sweets (rare):** the **Golden Mochi** (gold glow) counts double toward Bakery Orders and gives bonus points. The **Bomb Candy** never merges, and explodes after 2 seconds to pop the sweets around it.
+- **Achievements and titles:** 10 achievements (First Customer, Master Baker, Perfect Day, Fever Pitch, Boom!, Golden Touch, Combo King, Cake Boss, Sweet Tooth, Half Thousand) saved in the browser and shown in the Collection book. Your title grows from Apprentice to Grand Master as you unlock them.
 - Power-ups earned by scoring (every 80 / 100 / 130 points on Easy / Normal / Hard): Swap (change your sweet), Shake (wiggle the jar), Pop (remove one sweet). Keys `1`, `2`, `3`
 - Collection book: every sweet you make is unlocked in a book (saved on your device); locked sweets show as silhouettes
 - A short How to play tutorial on the first game, and a help button to open it again

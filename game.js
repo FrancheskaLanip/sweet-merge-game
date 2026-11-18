@@ -26,10 +26,10 @@ const SPRITE_FIT = 1.1;           // picture size compared to its circle
 // weights = chance of dropping sweet 0..4.
 // The game ends the moment a settled sweet crosses the dashed line.
 const LEVELS = {
-  easy:   { label: "Easy",   powerEvery: 80,  weights: [36, 30, 20, 10, 4] },
-  normal: { label: "Normal", powerEvery: 100, weights: [30, 28, 20, 14, 8] },
-  hard:   { label: "Hard",   powerEvery: 130, weights: [20, 22, 22, 20, 16] },
-  daily:  { label: "Daily",  powerEvery: 100, weights: [30, 28, 20, 14, 8], daily: true }
+  easy:   { label: "Easy",   powerEvery: 80,  orders: { slots: 2, time: 1.4 },  weights: [36, 30, 20, 10, 4] },
+  normal: { label: "Normal", powerEvery: 100, orders: { slots: 2, time: 1.0 }, weights: [30, 28, 20, 14, 8] },
+  hard:   { label: "Hard",   powerEvery: 130, orders: { slots: 3, time: 0.8 }, weights: [20, 22, 22, 20, 16] },
+  daily:  { label: "Daily",  powerEvery: 100, orders: { slots: 2, time: 1.0 }, weights: [30, 28, 20, 14, 8], daily: true }
 };
 const LEVEL_KEYS = ["easy", "normal", "hard", "daily"];
 
@@ -67,9 +67,14 @@ function seededRng(seedText) {
   };
 }
 const MAX_BONUS = 100;
+const ORDER_FIRST_DELAY = 6;      // seconds before the first bakery order shows up
+const ORDER_GAP = 3;              // seconds before a finished order is replaced
 const POWER_MAX = 3;              // most charges you can hold of each power-up
 const COMBO_WINDOW = 1.6;         // seconds to keep a combo going
 const COMBO_MAX = 5;              // highest score multiplier
+const FEVER_TIME = 8;             // seconds of Fever mode
+const BOMB_FUSE = 2.0;            // seconds before a Bomb Candy explodes
+const SPECIAL_CHANCE = 0.07;      // chance that the next sweet is a special one
 const DANGER_ZONE = 90;           // sweets this close to the line look worried            // bonus for merging two of the biggest sweets
 
 // One entry per level, smallest to biggest.
@@ -101,6 +106,11 @@ const scoreEl = document.getElementById("score");
 const bestEl = document.getElementById("best");
 const toastEl = document.getElementById("toast");
 const overlayEl = document.getElementById("overlay");
+const achListEl = document.getElementById("ach-list");
+const achCountEl = document.getElementById("ach-count");
+const titleEl = document.getElementById("player-title");
+const orderListEl = document.getElementById("order-list");
+const ordersDoneEl = document.getElementById("orders-done");
 const finalScoreEl = document.getElementById("final-score");
 const finalBestEl = document.getElementById("final-best");
 const newBestEl = document.getElementById("new-best");
@@ -245,6 +255,57 @@ function drawSweet(c, level, x, y, r, angle, scale, mood) {
   c.restore();
 }
 
+function drawGoldAura(c, x, y, r) {
+  const p = 0.5 + 0.5 * Math.sin(time * 6);
+  c.save();
+  c.shadowColor = "rgba(255, 205, 60, 0.9)";
+  c.shadowBlur = 14;
+  c.strokeStyle = "rgba(255, 215, 90, " + (0.6 + 0.3 * p) + ")";
+  c.lineWidth = 4;
+  c.beginPath();
+  c.arc(x, y, r * 0.98, 0, Math.PI * 2);
+  c.stroke();
+  c.restore();
+  drawStar(c, x + r * 0.7, y - r * 0.7, 7 + 3 * p, "#fff3b0");
+  drawStar(c, x - r * 0.75, y + r * 0.5, 5 + 2 * (1 - p), "#ffd770");
+}
+
+// Bomb Candy: a round, cute bomb with a lit fuse (drawn with code, no picture needed).
+function drawBomb(c, r, fuse) {
+  const hot = fuse !== undefined && fuse !== null && fuse < 0.9 && Math.sin(time * 30) > 0;
+  const g = c.createRadialGradient(-r * 0.3, -r * 0.3, r * 0.1, 0, 0, r);
+  g.addColorStop(0, hot ? "#ff9a8a" : "#7a68a8");
+  g.addColorStop(1, hot ? "#d9323f" : "#2b2147");
+  c.fillStyle = g;
+  c.beginPath(); c.arc(0, 0, r * 0.95, 0, Math.PI * 2); c.fill();
+  c.lineWidth = 3; c.strokeStyle = "#150f26"; c.stroke();
+  c.fillStyle = "rgba(255,255,255,0.35)";
+  c.beginPath(); c.ellipse(-r * 0.38, -r * 0.42, r * 0.22, r * 0.13, -0.6, 0, Math.PI * 2); c.fill();
+  c.fillStyle = "#9a9ab8"; c.fillRect(-r * 0.22, -r * 1.08, r * 0.44, r * 0.2);
+  c.strokeStyle = "#c9a45a"; c.lineWidth = 3; c.lineCap = "round";
+  c.beginPath(); c.moveTo(0, -r * 1.06); c.quadraticCurveTo(r * 0.3, -r * 1.45, r * 0.55, -r * 1.3); c.stroke();
+  drawStar(c, r * 0.55, -r * 1.3, 5 + 3 * Math.abs(Math.sin(time * 20)), "#ffcf4a");
+  c.fillStyle = "#fff";
+  c.beginPath(); c.arc(-r * 0.3, 0, r * 0.2, 0, Math.PI * 2); c.arc(r * 0.3, 0, r * 0.2, 0, Math.PI * 2); c.fill();
+  c.fillStyle = "#1b1030";
+  c.beginPath(); c.arc(-r * 0.27, r * 0.02, r * 0.1, 0, Math.PI * 2); c.arc(r * 0.33, r * 0.02, r * 0.1, 0, Math.PI * 2); c.fill();
+  c.strokeStyle = "#fff"; c.lineWidth = 2.5;
+  c.beginPath();
+  if (hot) { c.arc(0, r * 0.5, r * 0.15, Math.PI, 0); } else { c.arc(0, r * 0.3, r * 0.17, 0.2, Math.PI - 0.2); }
+  c.stroke();
+}
+
+function drawPiece(c, lv, sp, x, y, r, angle, scale, mood, fuse) {
+  if (sp === "bomb") {
+    c.save(); c.translate(x, y); c.rotate(angle || 0); c.scale(scale || 1, scale || 1);
+    drawBomb(c, r, fuse);
+    c.restore();
+    return;
+  }
+  drawSweet(c, lv, x, y, r, angle, scale, mood);
+  if (sp === "golden") drawGoldAura(c, x, y, r * (scale || 1));
+}
+
 // The "merge order" strip under the board.
 const ladderCtxs = [];
 SWEETS.forEach((s, i) => {
@@ -267,7 +328,7 @@ function refreshLadder() {
 
 function drawNext() {
   nextCtx.clearRect(0, 0, 56, 56);
-  drawSweet(nextCtx, next, 28, 28, 20, 0, 1);
+  drawPiece(nextCtx, next, nextSp, 28, 28, nextSp === "bomb" ? 16 : 20, 0, 1);
 }
 
 // Load the pictures (missing files simply use the placeholder).
@@ -324,6 +385,9 @@ function sfxMerge(level) {
   if (level >= 5) tone(900 + level * 40, 0.22, "triangle", 0.07, 1500);
 }
 function sfxPower() { tone(660, 0.12, "triangle", 0.1, 990); setTimeout(() => tone(990, 0.16, "triangle", 0.09, 1320), 90); }
+function sfxOrderNew() { tone(880, 0.09, "sine", 0.06, 1100); }
+function sfxOrderDone() { tone(523, 0.1, "triangle", 0.1, 659); setTimeout(() => tone(659, 0.1, "triangle", 0.1, 784), 90); setTimeout(() => tone(784, 0.18, "triangle", 0.1, 1046), 180); }
+function sfxOrderMiss() { tone(220, 0.2, "sine", 0.07, 130); }
 function sfxPop() { tone(520, 0.12, "square", 0.08, 160); }
 function sfxShake() { tone(140, 0.25, "sawtooth", 0.07, 70); }
 function sfxOver() { tone(330, 0.5, "sawtooth", 0.09, 90); }
@@ -360,6 +424,16 @@ let dangerRatio = 0;
 let toastTimer = null;
 let paused = false;
 let powers = { swap: 0, shake: 0, pop: 0 };
+let fever = 0;              // 0..100 meter, fills with merges
+let feverT = 0;             // seconds of Fever left (0 = not active)
+let heldSp = null, nextSp = null;   // special sweet types: "golden" | "bomb" | null
+let dropCount = 0;
+let ordersMissed = 0;
+let orders = [];            // active bakery orders
+let orderTimer = 0;         // countdown until the next order appears
+let ordersDone = 0;
+let orderRng = Math.random;
+let orderId = 0;
 let nextAward = 100;
 let popMode = false;
 let popHover = null;
@@ -395,6 +469,16 @@ function randomLevel() {
   return 0;
 }
 
+// Roll the next sweet. Sometimes it is a special one (Golden Mochi or Bomb Candy).
+function rollNext() {
+  next = randomLevel();
+  nextSp = null;
+  if (dropCount >= 5 && spawnRng() < SPECIAL_CHANCE) {
+    if (spawnRng() < 0.5) { nextSp = "golden"; next = 3; }
+    else { nextSp = "bomb"; next = 2; }
+  }
+}
+
 function makeBody(level, x, y) {
   const r = SWEETS[level].r;
   return {
@@ -408,6 +492,7 @@ function makeBody(level, x, y) {
 }
 
 function addScore(n) {
+  if (feverT > 0) n *= 2;
   score += n;
   while (score >= nextAward) { grantPower(); nextAward += LEVELS[level].powerEvery; }
   scoreEl.textContent = score;
@@ -442,8 +527,10 @@ function newGame() {
   dangerRatio = 0;
   combo = 0; comboTimer = 0; comboShow.life = 0; shake = 0; flash = 0;
   powers = { swap: 0, shake: 0, pop: 0 };
+  resetOrders();
   nextAward = LEVELS[level].powerEvery;
   spawnRng = LEVELS[level].daily ? seededRng("sweets-merge-" + activeBoard) : Math.random;
+  orderRng = LEVELS[level].daily ? seededRng("orders-" + activeBoard) : Math.random;
   setPopMode(false);
   updatePowerUI();
   closeBook();
@@ -452,8 +539,9 @@ function newGame() {
   playing = true;
   canDrop = true;
   cooldown = 0;
+  dropCount = 0; fever = 0; feverT = 0; ordersMissed = 0; heldSp = null;
   held = randomLevel();
-  next = randomLevel();
+  rollNext();
   scoreEl.textContent = "0";
   bestEl.textContent = best;
   overlayEl.classList.add("hidden");
@@ -470,6 +558,11 @@ function endGame() {
   if (LEVELS[level].daily) updateStreak();
   finalScoreEl.textContent = score;
   finalBestEl.textContent = best;
+  ordersDoneEl.textContent = "Orders filled: " + ordersDone;
+  stats.games++;
+  if (ordersDone >= 4 && ordersMissed === 0) unlock("perfect_day");
+  if (score >= 500) unlock("score500");
+  saveStats();
   newBestEl.classList.toggle("hidden", !(score > bestAtStart && score > 0));
   overlayEl.classList.remove("hidden");
   sfxOver();
@@ -697,6 +790,7 @@ function renderBook() {
     bookGrid.appendChild(b);
   });
   bookCount.textContent = collectedCount() + " / " + SWEETS.length;
+  renderAchievements();
   showSweetDetail(selectedSweet >= 0 ? selectedSweet : Math.min(collectedCount(), LAST));
 }
 
@@ -778,6 +872,7 @@ function selectLevel(lv) {
 }
 
 function showMenu() {
+  resetOrders();
   playing = false;
   canDrop = false;
   setPaused(false);
@@ -854,6 +949,7 @@ function usePower(k) {
   if (!powerAllowed() || powers[k] <= 0) return;
   if (k === "swap") {
     const t = held; held = next; next = t;
+    const ts = heldSp; heldSp = nextSp; nextSp = ts;
     drawNext();
     powers.swap--;
     flash = 0.2;
@@ -910,8 +1006,10 @@ function dropSweet() {
   const b = makeBody(held, clampX(aimX, r), SPAWN_Y);
   b.vy = 60;
   b.vx = (Math.random() - 0.5) * 30;   // tiny sideways nudge so towers can't balance perfectly
+  if (heldSp) { b.special = heldSp; if (heldSp === "bomb") b.fuse = BOMB_FUSE; }
+  dropCount++;
   bodies.push(b);
-  recordSweet(held, false);
+  if (!heldSp) recordSweet(held, false);
   sfxDrop();
   canDrop = false;
   cooldown = DROP_COOLDOWN;
@@ -1117,7 +1215,7 @@ function physicsStep(h) {
         const d2 = dx * dx + dy * dy;
         if (d2 >= minDist * minDist) continue;
 
-        if (a.level === b.level) {
+        if (a.level === b.level && a.special !== "bomb" && b.special !== "bomb") {
           a.merging = true;
           b.merging = true;
           merges.push([a, b]);
@@ -1145,6 +1243,14 @@ function mergePair(a, b) {
   combo = comboTimer > 0 ? combo + 1 : 1;
   comboTimer = COMBO_WINDOW;
   const mult = Math.min(combo, COMBO_MAX);
+  const fm = feverT > 0 ? 2 : 1;
+  const gold = a.special === "golden" || b.special === "golden";
+  if (combo >= COMBO_MAX) unlock("combo5");
+  stats.merges++;
+  if (feverT <= 0) {
+    fever = Math.min(100, fever + 9 + 3 * mult);
+    if (fever >= 100) startFever();
+  }
   if (combo >= 2) {
     comboShow.text = "COMBO x" + mult;
     comboShow.life = 1.2;
@@ -1157,7 +1263,8 @@ function mergePair(a, b) {
     shake = Math.max(shake, 14);
     flash = 0.6;
     burst(x, y, 44, 1.5);
-    floaters.push({ x, y, text: "+" + MAX_BONUS, life: 1.2, max: 1.2 });
+    floaters.push({ x, y, text: "+" + MAX_BONUS * fm, life: 1.2, max: 1.2 });
+    unlock("cake");
     showToast("Two Birthday Cakes! +" + MAX_BONUS);
     sfxMerge(LAST);
     return;
@@ -1177,9 +1284,18 @@ function mergePair(a, b) {
   const pts = SWEETS[level].points * mult;
   addScore(pts);
   recordSweet(level, false);
+  orderMade(level);
   if (level >= 5) shake = Math.max(shake, 3 + (level - 5) * 1.6);
   burst(x, y, 10 + level * 3, 1 + level * 0.08);
-  floaters.push({ x, y: y - SWEETS[level].r * 0.4, text: "+" + pts, life: 0.9, max: 0.9 });
+  floaters.push({ x, y: y - SWEETS[level].r * 0.4, text: "+" + pts * fm, life: 0.9, max: 0.9 });
+  if (gold) {
+    orderMade(level);                 // Golden Mochi counts twice for orders
+    addScore(20);
+    floaters.push({ x, y: y - SWEETS[level].r - 14, text: "Golden! +" + 20 * fm, life: 1.2, max: 1.2 });
+    burst(x, y, 24, 1.3);
+    stats.golden++; unlock("golden");
+  }
+  if (collectedCount() >= SWEETS.length) unlock("tooth");
   sfxMerge(Math.min(LAST, level + (mult - 1)));
 
   if (level > topLevel) {
@@ -1190,6 +1306,256 @@ function mergePair(a, b) {
     showToast("Collection: " + SWEETS[level].name + " unlocked!");
     saveCollection();
   }
+}
+
+// ---------------------------------------------------------------------
+// FEVER MODE + SPECIAL SWEETS
+// ---------------------------------------------------------------------
+function startFever() {
+  fever = 100;
+  feverT = FEVER_TIME;
+  flash = 0.5;
+  shake = Math.max(shake, 8);
+  showToast("FEVER MODE! Double points!");
+  sfxPower();
+  stats.fever++; unlock("fever");
+}
+
+function endFever() {
+  feverT = 0;
+  fever = 0;
+  // sweets that were above the line during Fever pop away so you are not punished unfairly
+  let pops = 0;
+  for (const b of bodies) {
+    if (b.y - b.r < JAR.limit) {
+      b.dead = true; pops++;
+      burst(b.x, b.y, 12, 1.1);
+      addScore(SWEETS[b.level].points + 1);
+    }
+  }
+  bodies = bodies.filter((b) => !b.dead);
+  if (pops) showToast("Fever over: top sweets popped!");
+}
+
+function explodeBomb(bm) {
+  bm.dead = true;
+  let n = 0, pts = 0;
+  for (const o of bodies) {
+    if (o === bm || o.dead) continue;
+    if (Math.hypot(o.x - bm.x, o.y - bm.y) - o.r < 80) {
+      o.dead = true; n++;
+      pts += SWEETS[o.level].points + 1;
+      burst(o.x, o.y, 10, 1);
+    }
+  }
+  burst(bm.x, bm.y, 36, 1.6);
+  shake = Math.max(shake, 16);
+  flash = Math.max(flash, 0.45);
+  sfxPop();
+  if (pts) addScore(pts);
+  floaters.push({ x: bm.x, y: bm.y - 20, text: n ? "BOOM +" + pts * (feverT > 0 ? 2 : 1) : "Fizzle", life: 1.2, max: 1.2 });
+  showToast(n ? "Bomb Candy popped " + n + " sweets!" : "Bomb Candy fizzled");
+  if (n >= 4) unlock("boom");
+}
+
+function drawFever() {
+  const bx = 10, by = 8, bw = 130, bh = 12;
+  const f = feverT > 0 ? feverT / FEVER_TIME : fever / 100;
+  ctx.save();
+  ctx.fillStyle = "rgba(60, 25, 70, 0.55)";
+  ctx.fillRect(bx, by, bw, bh);
+  const g = ctx.createLinearGradient(bx, 0, bx + bw, 0);
+  if (feverT > 0) { g.addColorStop(0, "#ffd770"); g.addColorStop(1, "#ff7ab0"); }
+  else { g.addColorStop(0, "#ff9ec6"); g.addColorStop(1, "#ffcf5a"); }
+  ctx.fillStyle = g;
+  ctx.fillRect(bx, by, bw * f, bh);
+  ctx.lineWidth = 2; ctx.strokeStyle = feverT > 0 ? "#fff3b0" : "rgba(255,255,255,0.8)";
+  ctx.strokeRect(bx, by, bw, bh);
+  ctx.font = "900 11px 'Trebuchet MS', 'Segoe UI', sans-serif";
+  ctx.textBaseline = "middle"; ctx.textAlign = "left";
+  ctx.lineWidth = 3; ctx.strokeStyle = "#7a2f66"; ctx.lineJoin = "round";
+  const label = feverT > 0 ? "FEVER x2  " + Math.ceil(feverT) + "s" : "FEVER";
+  ctx.strokeText(label, bx + bw + 7, by + bh / 2 + 1);
+  ctx.fillStyle = feverT > 0 ? "#ffe27a" : "#fff";
+  ctx.fillText(label, bx + bw + 7, by + bh / 2 + 1);
+  if (feverT > 0) {
+    ctx.lineWidth = 8;
+    ctx.strokeStyle = "rgba(255, 205, 70, " + (0.35 + 0.25 * Math.sin(time * 12)) + ")";
+    ctx.strokeRect(4, 4, W - 8, H - 8);
+  }
+  ctx.restore();
+}
+
+// ---------------------------------------------------------------------
+// ACHIEVEMENTS + TITLES  (saved in localStorage, shown in the collection book)
+// ---------------------------------------------------------------------
+const ACHIEVEMENTS = [
+  { id: "first_order",  name: "First Customer", desc: "Fill your first order." },
+  { id: "master_baker", name: "Master Baker",   desc: "Fill 15 orders in total." },
+  { id: "perfect_day",  name: "Perfect Day",    desc: "Finish a game with 4+ orders filled and none missed." },
+  { id: "fever",        name: "Fever Pitch",    desc: "Start Fever Mode." },
+  { id: "boom",         name: "Boom!",          desc: "Pop 4 or more sweets with one Bomb Candy." },
+  { id: "golden",       name: "Golden Touch",   desc: "Merge a Golden Mochi." },
+  { id: "combo5",       name: "Combo King",     desc: "Reach a x5 combo." },
+  { id: "cake",         name: "Cake Boss",      desc: "Merge two Birthday Cakes." },
+  { id: "tooth",        name: "Sweet Tooth",    desc: "Unlock every sweet in the collection." },
+  { id: "score500",     name: "Half Thousand",  desc: "Score 500 points in one game." }
+];
+const TITLES = ["Apprentice", "Home Baker", "Pastry Chef", "Head Chef", "Sweet Legend", "Grand Master"];
+
+function loadJSON(key, fallback) {
+  try { const v = JSON.parse(store.get(key)); if (v && typeof v === "object") return v; } catch (e) { /* ignore */ }
+  return fallback;
+}
+let stats = Object.assign({ games: 0, merges: 0, orders: 0, fever: 0, golden: 0 }, loadJSON("stats", {}));
+let earned = loadJSON("achievements", {});
+
+function saveStats() { store.set("stats", JSON.stringify(stats)); }
+
+function unlock(id) {
+  if (earned[id]) return;
+  earned[id] = 1;
+  store.set("achievements", JSON.stringify(earned));
+  saveStats();
+  const a = ACHIEVEMENTS.find((x) => x.id === id);
+  if (a) showToast("Achievement: " + a.name + "!");
+}
+
+function achievementCount() { return ACHIEVEMENTS.filter((a) => earned[a.id]).length; }
+
+function currentTitle() {
+  const n = achievementCount();
+  if (n >= ACHIEVEMENTS.length) return TITLES[5];
+  return TITLES[Math.min(4, Math.floor(n / 2))];
+}
+
+function renderAchievements() {
+  achListEl.innerHTML = "";
+  ACHIEVEMENTS.forEach((a) => {
+    const got = !!earned[a.id];
+    const el = document.createElement("div");
+    el.className = "ach" + (got ? " got" : "");
+    el.innerHTML = '<svg class="ic"><use href="#i-star"/></svg><div><b></b><small></small></div>';
+    el.querySelector("b").textContent = a.name;
+    el.querySelector("small").textContent = a.desc;
+    achListEl.appendChild(el);
+  });
+  achCountEl.textContent = achievementCount() + " / " + ACHIEVEMENTS.length;
+  titleEl.textContent = currentTitle();
+}
+
+// ---------------------------------------------------------------------
+// BAKERY ORDERS  (customers ask for a sweet; make it by merging before time runs out)
+// ---------------------------------------------------------------------
+function resetOrders() {
+  orders = [];
+  ordersDone = 0;
+  orderTimer = ORDER_FIRST_DELAY;
+  orderListEl.innerHTML = "";
+  updateOrdersEmpty();
+}
+
+function updateOrdersEmpty() {
+  orderListEl.classList.toggle("empty", orders.length === 0);
+}
+
+// Pick a sweet that is hard enough to be interesting but still possible.
+function pickOrderTarget() {
+  const lo = Math.max(1, topLevel - 2);
+  const hi = Math.min(LAST - 2, Math.max(2, topLevel + 1));
+  const target = lo + Math.floor(orderRng() * (hi - lo + 1));
+  const need = target >= 5 ? 1 : (target >= 3 ? 1 + Math.floor(orderRng() * 2) : 2 + Math.floor(orderRng() * 2));
+  return { target, need };
+}
+
+function spawnOrder() {
+  const cfg = LEVELS[level].orders;
+  const { target, need } = pickOrderTarget();
+  const seconds = (50 + target * 8 + need * 12) * cfg.time;
+  const o = { id: ++orderId, level: target, need, have: 0, time: seconds, max: seconds };
+
+  const el = document.createElement("div");
+  el.className = "ticket";
+  const img = document.createElement("img");
+  img.src = SWEETS[target].image;
+  img.alt = SWEETS[target].name;
+  img.draggable = false;
+  const txt = document.createElement("div");
+  txt.className = "t-text";
+  const nm = document.createElement("span");
+  nm.className = "t-name";
+  nm.textContent = SWEETS[target].name;
+  const pr = document.createElement("span");
+  pr.className = "t-prog";
+  const bar = document.createElement("i");
+  bar.className = "t-bar";
+  txt.appendChild(nm);
+  txt.appendChild(pr);
+  el.appendChild(img);
+  el.appendChild(txt);
+  el.appendChild(bar);
+  o.el = el; o.prog = pr; o.bar = bar;
+  orders.push(o);
+  orderListEl.appendChild(el);
+  setOrderProgress(o);
+  updateOrdersEmpty();
+  sfxOrderNew();
+}
+
+function setOrderProgress(o) {
+  o.prog.textContent = o.have + " / " + o.need;
+}
+
+function removeOrder(o, cls) {
+  orders = orders.filter((x) => x !== o);
+  o.el.classList.add(cls);
+  setTimeout(() => { if (o.el.parentNode) o.el.parentNode.removeChild(o.el); updateOrdersEmpty(); }, 450);
+  orderTimer = Math.min(orderTimer, ORDER_GAP);
+  if (orders.length === LEVELS[level].orders.slots - 1) orderTimer = ORDER_GAP;
+}
+
+function updateOrders(dt) {
+  const slots = LEVELS[level].orders.slots;
+  if (orders.length < slots) {
+    orderTimer -= dt;
+    if (orderTimer <= 0) { spawnOrder(); orderTimer = ORDER_GAP + 4; }
+  }
+  for (const o of orders.slice()) {
+    o.time -= dt;
+    const f = Math.max(0, o.time / o.max);
+    o.bar.style.width = (f * 100).toFixed(1) + "%";
+    o.el.classList.toggle("low", f < 0.25);
+    if (o.time <= 0) {
+      ordersMissed++;
+      removeOrder(o, "missed");
+      showToast("Order missed: " + SWEETS[o.level].name);
+      sfxOrderMiss();
+    }
+  }
+}
+
+// Called every time a merge makes a new sweet.
+function orderMade(lv) {
+  const match = orders.filter((o) => o.level === lv && o.have < o.need).sort((a, b) => a.time - b.time)[0];
+  if (!match) return;
+  match.have++;
+  setOrderProgress(match);
+  if (match.have < match.need) {
+    match.el.classList.remove("ping"); void match.el.offsetWidth; match.el.classList.add("ping");
+    return;
+  }
+  // order finished
+  ordersDone++;
+  stats.orders++; unlock("first_order"); if (stats.orders >= 15) unlock("master_baker");
+  const reward = Math.max(12, Math.round(SWEETS[match.level].points * match.need * 3));
+  addScore(reward);
+  const b = bodies[bodies.length - 1];
+  floaters.push({ x: b ? b.x : W / 2, y: b ? b.y - 30 : 200, text: "Order +" + reward, life: 1.3, max: 1.3 });
+  removeOrder(match, "done");
+  showToast("Order filled! +" + reward);
+  sfxOrderDone();
+  flash = Math.max(flash, 0.25);
+  if (ordersDone % 2 === 0) grantPower();    // every second order also gives a power-up
 }
 
 // ---------------------------------------------------------------------
@@ -1222,6 +1588,12 @@ function update(dt) {
     comboTimer -= dt;
     if (comboTimer <= 0) combo = 0;
   }
+  updateOrders(dt);
+  if (feverT > 0) {
+    feverT -= dt;
+    fever = Math.max(0, (feverT / FEVER_TIME) * 100);
+    if (feverT <= 0) endFever();
+  }
 
   // blinking: every sweet blinks now and then
   heldBlinkIn -= dt;
@@ -1237,8 +1609,8 @@ function update(dt) {
   if (!canDrop) {
     cooldown -= dt;
     if (cooldown <= 0) {
-      held = next;
-      next = randomLevel();
+      held = next; heldSp = nextSp;
+      rollNext();
       canDrop = true;
       drawNext();
     }
@@ -1250,11 +1622,21 @@ function update(dt) {
   const popFade = Math.exp(-10 * dt);
   for (const b of bodies) b.pop *= popFade;
 
+  // Bomb Candy fuses
+  for (const b of bodies) {
+    if (b.special === "bomb" && !b.dead) {
+      b.fuse -= dt;
+      if (b.fuse <= 0) explodeBomb(b);
+    }
+  }
+  bodies = bodies.filter((b) => !b.dead);
+
   // game over check: a settled sweet stays above the dashed line
   let danger = false;
   for (const b of bodies) {
     if (b.age <= GRACE_TIME) continue;     // freshly dropped or merged sweets are ignored while they fall
     const top = b.y - b.r;
+    if (feverT > 0) continue;                              // Fever mode: the line is safe
     if (top < JAR.limit) { endGame(); return; }          // crossed the line: game over right away
     if (top < JAR.limit + 40) danger = true;              // close to the line: warning
   }
@@ -1345,7 +1727,7 @@ function render() {
     ctx.lineTo(x, JAR.floor);
     ctx.stroke();
     ctx.restore();
-    drawSweet(ctx, held, x, SPAWN_Y, r, 0, 1, dangerRatio > 0 ? "worried" : (heldBlinkT > 0 ? "blink" : "normal"));
+    drawPiece(ctx, held, heldSp, x, SPAWN_Y, r, 0, 1, dangerRatio > 0 ? "worried" : (heldBlinkT > 0 ? "blink" : "normal"));
   }
 
   // sweets in the jar
@@ -1357,7 +1739,7 @@ function render() {
       mood = "worried";
       wobble = Math.sin(time * 28 + b.x) * 0.035;   // nervous shaking
     } else if (b.blinkT > 0) mood = "blink";
-    drawSweet(ctx, b.level, b.x, b.y, b.r, b.angle + wobble, 1 + b.pop, mood);
+    drawPiece(ctx, b.level, b.special, b.x, b.y, b.r, b.angle + wobble, 1 + b.pop, mood, b.fuse);
   }
 
   // jar rim on top
@@ -1374,6 +1756,8 @@ function render() {
     drawStar(ctx, p.x, p.y, p.size, p.color);
   }
   ctx.globalAlpha = 1;
+
+  if (playing) drawFever();
 
   // flash when something big happens
   if (flash > 0) {
@@ -1446,7 +1830,7 @@ loadBest();
 levelName.textContent = LEVELS[level].label;
 bestEl.textContent = best;
 held = randomLevel();
-next = randomLevel();
+rollNext();
 drawNext();
 showMenu();
 requestAnimationFrame(frame);

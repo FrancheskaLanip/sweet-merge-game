@@ -31,6 +31,7 @@
       <symbol id="i-shake" viewBox="0 0 24 24"><path d="M2 9v6M5 6v12M19 6v12M22 9v6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/><rect x="8" y="5" width="8" height="14" rx="3" fill="currentColor"/></symbol>
       <symbol id="i-pop" viewBox="0 0 24 24"><path d="M12 2l2.2 5.3L20 6l-2 5.5L23 14l-5.4 1.6L18 21l-5-3-5 3 .4-5.4L2 14l5-2.5L5 6l5.8 1.3L12 2z" fill="currentColor"/></symbol>
       <symbol id="i-calendar" viewBox="0 0 24 24"><path d="M3 8a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3v1H3V8z" fill="currentColor"/><path d="M3 10.5h18V19a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3v-8.5z" fill="currentColor" opacity=".75"/><path d="M8 2.5v4M16 2.5v4" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/><path d="M8 14h3M13 14h3M8 18h3" stroke="var(--detail, #fff)" stroke-width="2" stroke-linecap="round"/></symbol>
+      <symbol id="i-receipt" viewBox="0 0 24 24"><path d="M5 2.5h14v19l-2.3-1.6-2.3 1.6-2.4-1.6-2.4 1.6-2.3-1.6L5 21.5v-19z" fill="currentColor"/><path d="M8.5 7.5h7M8.5 11h7M8.5 14.5h4" stroke="var(--detail, #fff)" stroke-width="1.8" stroke-linecap="round"/></symbol>
       <symbol id="i-user" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4.2" fill="currentColor"/><path d="M4 21c0-4.4 3.6-7 8-7s8 2.6 8 7z" fill="currentColor"/></symbol>
       <symbol id="i-crown" viewBox="0 0 24 24"><path d="M3 8l4.5 4L12 5l4.5 7L21 8l-2 11H5L3 8z" fill="currentColor"/></symbol>
     </defs>
@@ -46,6 +47,11 @@
       <div class="stat"><span class="label"><svg class="ic"><use href="#i-crown"/></svg> Best</span><span class="value" id="best">0</span></div>
       <div class="stat"><span class="label">Level</span><span class="value small" id="level-name">Normal</span></div>
       <div class="stat stat-next"><span class="label">Next</span><canvas id="next" aria-label="Next sweet"></canvas></div>
+    </section>
+
+    <section class="orders" aria-label="Bakery orders">
+      <span class="orders-tag"><svg class="ic"><use href="#i-receipt"/></svg><span>Orders</span></span>
+      <div id="order-list" class="order-list empty" aria-live="polite"></div>
     </section>
 
     <div class="stage">
@@ -93,6 +99,9 @@
           <p class="book-count"><span id="book-count">0 / 10</span> collected</p>
           <div id="book-grid" class="book-grid"></div>
           <p id="book-detail" class="book-detail"></p>
+          <h3 class="ach-h">Achievements <span id="ach-count"></span></h3>
+          <p class="title-line">Title: <strong id="player-title">Apprentice</strong></p>
+          <div id="ach-list" class="ach-list"></div>
           <button id="book-close" type="button" class="btn btn-alt"><span>Close</span></button>
         </div>
       </div>
@@ -124,8 +133,18 @@
           </div>
 
           <div class="tut-step hidden">
+            <div class="tut-art"><div class="ticket demo"><img src="assets/sweet2.png" alt="" /><div class="t-text"><span class="t-name">Dango</span><span class="t-prog">0 / 2</span></div><i class="t-bar"></i></div></div>
+            <h3>5. Bakery orders</h3>
+            <p>Customers order sweets at the top. Merge to make the sweet they ask for before the timer runs out to get bonus points!</p>
+          </div>
+          <div class="tut-step hidden">
+            <div class="tut-art"><img class="tut-img gold" src="assets/sweet3.png" alt="" /><span class="fever-demo"></span></div>
+            <h3>6. Specials and Fever</h3>
+            <p>Golden Mochi counts double for orders. Bomb Candy explodes and pops nearby sweets. Fill the Fever bar with merges for 8 seconds of double points, and the line cannot end the game!</p>
+          </div>
+          <div class="tut-step hidden">
             <div class="tut-art"><span class="pw-demo"><svg class="ic"><use href="#i-swap"/></svg></span><span class="pw-demo"><svg class="ic"><use href="#i-shake"/></svg></span><span class="pw-demo"><svg class="ic"><use href="#i-pop"/></svg></span></div>
-            <h3>5. Power-ups</h3>
+            <h3>7. Power-ups</h3>
             <p>Score points to earn Swap, Shake and Pop. Swap changes your sweet, Shake wiggles the jar, and Pop removes one sweet. Keys 1, 2, 3.</p>
           </div>
 
@@ -154,6 +173,7 @@
           <h2 class="over-title">Game Over</h2>
           <div class="score-big"><span class="label">Score</span><strong id="final-score">0</strong></div>
           <p class="best-line"><svg class="ic"><use href="#i-crown"/></svg> Best <strong id="final-best">0</strong></p>
+          <p id="orders-done" class="orders-done"></p>
           <p id="new-best" class="new-best hidden"><svg class="ic"><use href="#i-star"/></svg> New best score <svg class="ic"><use href="#i-star"/></svg></p>
 
           <div id="submit-box" class="submit-box hidden">
