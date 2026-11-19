@@ -349,7 +349,7 @@ button { font: inherit; cursor: pointer; }
   #next { width: 34px !important; height: 34px !important; border-radius: 10px; }
   .stage { padding: 5px; border-radius: 22px; border-width: 2px; width: min(100%, 420px, calc((100vh - 246px) * 0.625)); }
   #game { border-radius: 16px; }
-  .overlay { inset: 5px; border-radius: 16px; padding: 28px 6px 10px; }
+  .overlay { position: fixed; inset: 0; z-index: 100; border-radius: 0; padding: 28px 6px 12px; }   /* full-screen on phones so panels are never cut by the small game board */
   .controls { padding: 4px 0 2px; }
   .powers { margin: 4px 0 0; gap: 6px; }
   .power-btn { padding: 5px 10px 5px 8px; font-size: .78rem; box-shadow: 0 2px 0 var(--pink-d); }
