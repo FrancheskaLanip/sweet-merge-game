@@ -1326,6 +1326,42 @@ function resolvePair(a, b, dx, dy, dist, minDist) {
   }
 }
 
+// Un-jam helper: a sweet that is wedged between others, but still has room to
+// fall somewhere nearby, gets a small hop toward that spot so it can drop.
+function spotFree(b, x, y) {
+  if (x - b.r < JAR.left || x + b.r > JAR.right || y + b.r > JAR.floor) return false;
+  for (const o of bodies) {
+    if (o === b || o.dead || o.merging) continue;
+    const dx = o.x - x, dy = o.y - y, m = o.r + b.r - 0.5;
+    if (dx * dx + dy * dy < m * m) return false;
+  }
+  return true;
+}
+function unjam(dt) {
+  for (const b of bodies) {
+    if (b.merging || b.dead) continue;
+    const speed = Math.hypot(b.vx, b.vy);
+    if (speed > 40) { b.restT = 0; b.kicks = 0; continue; }
+    if (b.y + b.r >= JAR.floor - 1.5) { b.restT = 0; continue; }
+    b.restT = (b.restT || 0) + dt;
+    if (b.restT < 0.7 || (b.kicks || 0) >= 5 || b.age < 1) continue;
+    let best = null, gain = b.r * 0.3;
+    for (let off = -2 * b.r; off <= 2 * b.r; off += b.r / 2) {
+      if (off === 0) continue;
+      const x = b.x + off;
+      let lowest = null;
+      for (let y = b.y + 3; y + b.r <= JAR.floor + 0.01; y += 3) { if (spotFree(b, x, y)) lowest = y; }
+      if (lowest !== null && lowest - b.y > gain) { gain = lowest - b.y; best = off; }
+    }
+    b.restT = -0.5;
+    if (best !== null) {
+      b.kicks = (b.kicks || 0) + 1;
+      b.vx = Math.sign(best) * 110;
+      b.vy = -150;
+    }
+  }
+}
+
 function physicsStep(h) {
   // move
   for (const b of bodies) {
@@ -2162,6 +2198,7 @@ function update(dt) {
 
   const h = dt / SUBSTEPS;
   for (let i = 0; i < SUBSTEPS; i++) physicsStep(h);
+  unjam(dt);
 
   const popFade = Math.exp(-10 * dt);
   for (const b of bodies) b.pop *= popFade;
