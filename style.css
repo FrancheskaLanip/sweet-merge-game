@@ -429,3 +429,24 @@ button { font: inherit; cursor: pointer; }
 .tut-img { width: 64px; height: 64px; object-fit: contain; }
 .tut-img.gold { filter: drop-shadow(0 0 8px #ffcf4a); }
 .fever-demo { display: inline-block; width: 90px; height: 14px; margin-left: 10px; border-radius: 4px; border: 2px solid #fff; background: linear-gradient(90deg, #ff9ec6, #ffcf5a); box-shadow: 0 0 0 2px #7a2f66; }
+
+/* ---------- profile, themes ---------- */
+.profile-panel { width: 320px; max-height: 100%; overflow-y: auto; }
+.stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; text-align: left; }
+.stat-cell { padding: 4px 8px; border-radius: 10px; background: rgba(255,255,255,.6); border: 2px solid #eadcf0; }
+.stat-cell small { display: block; font-size: .62rem; font-weight: 700; opacity: .75; }
+.stat-cell b { font-size: .95rem; color: var(--pink-d); }
+.theme-list { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; margin-bottom: 4px; }
+.theme-chip { display: flex; align-items: center; gap: 6px; padding: 5px 7px; border-radius: 12px; border: 2px solid #eadcf0; background: rgba(255,255,255,.7); text-align: left; font-size: .7rem; font-weight: 800; line-height: 1.15; }
+.theme-chip i { flex: none; width: 24px; height: 24px; border-radius: 50%; border: 2px solid #fff; box-shadow: 0 0 0 2px #cbbcd6; }
+.theme-chip.on { border-color: var(--gold); background: #fffbe8; }
+.theme-chip.locked { opacity: .5; }
+.stage[data-theme="mint"] { background: linear-gradient(180deg, #8fe3c4, #3fbf93); }
+.stage[data-theme="mint"] #game { background: linear-gradient(180deg, #f2fffa, #d8f7ec); }
+.stage[data-theme="sunset"] { background: linear-gradient(180deg, #ffb36b, #ff7a59); }
+.stage[data-theme="sunset"] #game { background: linear-gradient(180deg, #fff3e3, #ffd9c2); }
+.stage[data-theme="ube"] { background: linear-gradient(180deg, #a98be0, #6a4aa8); }
+.stage[data-theme="ube"] #game { background: linear-gradient(180deg, #efe6ff, #d6c6f5); }
+.stage[data-theme="gold"] { background: linear-gradient(180deg, #ffd86b, #f0a92a); }
+.stage[data-theme="gold"] #game { background: linear-gradient(180deg, #fffbe6, #fff0b8); }
+#share-btn { margin: 6px auto 0; }

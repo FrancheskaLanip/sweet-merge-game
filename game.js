@@ -106,6 +106,12 @@ const scoreEl = document.getElementById("score");
 const bestEl = document.getElementById("best");
 const toastEl = document.getElementById("toast");
 const overlayEl = document.getElementById("overlay");
+const profileOverlay = document.getElementById("profile-overlay");
+const statGridEl = document.getElementById("stat-grid");
+const themeListEl = document.getElementById("theme-list");
+const profileTitleEl = document.getElementById("profile-title");
+const shareBtn = document.getElementById("share-btn");
+const stageEl = document.querySelector(".stage");
 const achListEl = document.getElementById("ach-list");
 const achCountEl = document.getElementById("ach-count");
 const titleEl = document.getElementById("player-title");
@@ -379,18 +385,77 @@ function tone(freq, dur, type, vol, slideTo) {
   osc.stop(t + dur + 0.02);
 }
 
+// Vibration on phones (follows the sound button)
+function buzz(pattern) {
+  if (muted) return;
+  try { if (navigator.vibrate) navigator.vibrate(pattern); } catch (e) { /* ignore */ }
+}
+
+// Background music: a soft music-box melody made with code (no audio files).
+let musicOn = store.get("music") !== "0";
+let musicNext = 0, musicStep = 0, musicDeg = 4;
+const MUSIC_SCALE = [0, 2, 4, 7, 9];            // C major pentatonic, always sounds nice
+const MUSIC_BASS = [0, 2, 3, 1];
+function noteFreq(deg, oct) {
+  const o = Math.floor(deg / 5);
+  const n = MUSIC_SCALE[((deg % 5) + 5) % 5];
+  return 261.63 * Math.pow(2, (n + 12 * (o + oct)) / 12);
+}
+function musicTone(freq, dur, type, vol, when) {
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  osc.type = type;
+  osc.frequency.setValueAtTime(freq, when);
+  gain.gain.setValueAtTime(0.0001, when);
+  gain.gain.exponentialRampToValueAtTime(vol, when + 0.015);
+  gain.gain.exponentialRampToValueAtTime(0.0001, when + dur);
+  osc.connect(gain);
+  gain.connect(audioCtx.destination);
+  osc.start(when);
+  osc.stop(when + dur + 0.05);
+}
+function scheduleMusic() {
+  if (!audioCtx || muted || !musicOn || !playing || paused) { musicNext = 0; return; }
+  const now = audioCtx.currentTime;
+  if (musicNext < now) musicNext = now + 0.05;
+  const beat = feverT > 0 ? 0.17 : 0.27;
+  while (musicNext < now + 0.35) {
+    const step = musicStep % 16;
+    if (step % 8 === 0) musicTone(noteFreq(MUSIC_BASS[Math.floor(musicStep / 8) % 4], -1), beat * 7, "sine", 0.045, musicNext);
+    if (step % 2 === 0 || Math.random() < 0.3) {
+      const moves = [-2, -1, -1, 0, 1, 1, 2];
+      musicDeg = Math.max(0, Math.min(9, musicDeg + moves[Math.floor(Math.random() * moves.length)]));
+      musicTone(noteFreq(musicDeg, feverT > 0 ? 1 : 0), beat * 1.8, "triangle", 0.035, musicNext);
+    }
+    musicNext += beat;
+    musicStep++;
+  }
+}
+setInterval(scheduleMusic, 150);
+
 function sfxDrop() { tone(220, 0.09, "triangle", 0.1, 140); }
 function sfxMerge(level) {
+  buzz(level >= 5 ? 25 : 10);
   tone(380 + level * 55, 0.16, "sine", 0.14, 700 + level * 70);
   if (level >= 5) tone(900 + level * 40, 0.22, "triangle", 0.07, 1500);
 }
-function sfxPower() { tone(660, 0.12, "triangle", 0.1, 990); setTimeout(() => tone(990, 0.16, "triangle", 0.09, 1320), 90); }
+function sfxPower() {
+  buzz([30, 40, 30]);
+  tone(660, 0.12, "triangle", 0.1, 990); setTimeout(() => tone(990, 0.16, "triangle", 0.09, 1320), 90); }
 function sfxOrderNew() { tone(880, 0.09, "sine", 0.06, 1100); }
-function sfxOrderDone() { tone(523, 0.1, "triangle", 0.1, 659); setTimeout(() => tone(659, 0.1, "triangle", 0.1, 784), 90); setTimeout(() => tone(784, 0.18, "triangle", 0.1, 1046), 180); }
+function sfxOrderDone() {
+  buzz([20, 40, 20]);
+  tone(523, 0.1, "triangle", 0.1, 659); setTimeout(() => tone(659, 0.1, "triangle", 0.1, 784), 90); setTimeout(() => tone(784, 0.18, "triangle", 0.1, 1046), 180); }
 function sfxOrderMiss() { tone(220, 0.2, "sine", 0.07, 130); }
-function sfxPop() { tone(520, 0.12, "square", 0.08, 160); }
-function sfxShake() { tone(140, 0.25, "sawtooth", 0.07, 70); }
-function sfxOver() { tone(330, 0.5, "sawtooth", 0.09, 90); }
+function sfxPop() {
+  buzz(25);
+  tone(520, 0.12, "square", 0.08, 160); }
+function sfxShake() {
+  buzz(60);
+  tone(140, 0.25, "sawtooth", 0.07, 70); }
+function sfxOver() {
+  buzz(250);
+  tone(330, 0.5, "sawtooth", 0.09, 90); }
 
 function updateMuteButton() {
   muteBtn.innerHTML = '<svg class="ic"><use href="#' + (muted ? "i-mute" : "i-sound") + '"/></svg>';
@@ -516,6 +581,7 @@ function loadBest() {
 }
 
 function newGame() {
+  ensureAudio();
   loadBest();
   levelName.textContent = LEVELS[level].label;
   menuEl.classList.add("hidden");
@@ -560,6 +626,8 @@ function endGame() {
   finalBestEl.textContent = best;
   ordersDoneEl.textContent = "Orders filled: " + ordersDone;
   stats.games++;
+  stats.bestScore = Math.max(stats.bestScore, score);
+  stats.topLevel = Math.max(stats.topLevel, topLevel);
   if (ordersDone >= 4 && ordersMissed === 0) unlock("perfect_day");
   if (score >= 500) unlock("score500");
   saveStats();
@@ -1077,6 +1145,10 @@ muteBtn.addEventListener("click", () => {
 });
 restartBtn.addEventListener("click", () => { if (playerName && menuEl.classList.contains("hidden")) newGame(); });
 playAgainBtn.addEventListener("click", newGame);
+shareBtn.addEventListener("click", shareScore);
+document.getElementById("profile-btn").addEventListener("click", openProfile);
+document.getElementById("profile-close").addEventListener("click", closeProfile);
+document.querySelectorAll(".music-toggle").forEach((b) => b.addEventListener("click", toggleMusic));
 submitBtn.addEventListener("click", sendScore);
 startBtn.addEventListener("click", startClicked);
 menuBtn.addEventListener("click", showMenu);
@@ -1247,6 +1319,7 @@ function mergePair(a, b) {
   const gold = a.special === "golden" || b.special === "golden";
   if (combo >= COMBO_MAX) unlock("combo5");
   stats.merges++;
+  if (combo > stats.maxCombo) stats.maxCombo = combo;
   if (feverT <= 0) {
     fever = Math.min(100, fever + 9 + 3 * mult);
     if (fever >= 100) startFever();
@@ -1355,6 +1428,7 @@ function explodeBomb(bm) {
   if (pts) addScore(pts);
   floaters.push({ x: bm.x, y: bm.y - 20, text: n ? "BOOM +" + pts * (feverT > 0 ? 2 : 1) : "Fizzle", life: 1.2, max: 1.2 });
   showToast(n ? "Bomb Candy popped " + n + " sweets!" : "Bomb Candy fizzled");
+  stats.bombs++;
   if (n >= 4) unlock("boom");
 }
 
@@ -1407,9 +1481,10 @@ function loadJSON(key, fallback) {
   try { const v = JSON.parse(store.get(key)); if (v && typeof v === "object") return v; } catch (e) { /* ignore */ }
   return fallback;
 }
-let stats = Object.assign({ games: 0, merges: 0, orders: 0, fever: 0, golden: 0 }, loadJSON("stats", {}));
+let stats = Object.assign({ games: 0, merges: 0, orders: 0, fever: 0, golden: 0, bombs: 0, maxCombo: 0, seconds: 0, bestScore: 0, topLevel: 0 }, loadJSON("stats", {}));
 let earned = loadJSON("achievements", {});
 
+window.addEventListener("pagehide", () => { saveStats(); });
 function saveStats() { store.set("stats", JSON.stringify(stats)); }
 
 function unlock(id) {
@@ -1419,6 +1494,8 @@ function unlock(id) {
   saveStats();
   const a = ACHIEVEMENTS.find((x) => x.id === id);
   if (a) showToast("Achievement: " + a.name + "!");
+  const nt = THEMES.find((t) => t.need === achievementCount() && t.need > 0);
+  if (nt) setTimeout(() => showToast("New jar theme: " + nt.name + "!"), 1800);
 }
 
 function achievementCount() { return ACHIEVEMENTS.filter((a) => earned[a.id]).length; }
@@ -1442,6 +1519,166 @@ function renderAchievements() {
   });
   achCountEl.textContent = achievementCount() + " / " + ACHIEVEMENTS.length;
   titleEl.textContent = currentTitle();
+}
+
+// ---------------------------------------------------------------------
+// JAR THEMES  (unlocked with achievements)
+// ---------------------------------------------------------------------
+const THEMES = [
+  { id: "classic", name: "Classic Pink", need: 0, rim: "rgba(255, 150, 185, 0.95)", glass: "rgba(255, 255, 255, 0.4)", sw: ["#ff9cc2", "#fff6fb"] },
+  { id: "mint",    name: "Mint Soda",    need: 2, rim: "rgba(70, 190, 150, 0.95)",  glass: "rgba(240, 255, 250, 0.45)", sw: ["#5fd3a8", "#f2fffa"] },
+  { id: "sunset",  name: "Sunset",       need: 4, rim: "rgba(255, 140, 80, 0.95)",  glass: "rgba(255, 246, 232, 0.45)", sw: ["#ff8f66", "#fff3e3"] },
+  { id: "ube",     name: "Ube Night",    need: 6, rim: "rgba(150, 120, 220, 0.95)", glass: "rgba(235, 225, 255, 0.35)", sw: ["#8a68c8", "#efe6ff"] },
+  { id: "gold",    name: "Golden Hour",  need: 8, rim: "rgba(235, 180, 50, 0.95)",  glass: "rgba(255, 251, 225, 0.5)",  sw: ["#f5b93a", "#fffbe6"] }
+];
+let themeId = store.get("theme") || "classic";
+
+function themeUnlocked(t) { return achievementCount() >= t.need; }
+function currentTheme() {
+  const t = THEMES.find((x) => x.id === themeId) || THEMES[0];
+  return themeUnlocked(t) ? t : THEMES[0];
+}
+function applyTheme() { stageEl.dataset.theme = currentTheme().id; }
+
+function renderThemes() {
+  themeListEl.innerHTML = "";
+  THEMES.forEach((t) => {
+    const ok = themeUnlocked(t);
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "theme-chip" + (currentTheme() === t ? " on" : "") + (ok ? "" : " locked");
+    b.innerHTML = '<i></i><span></span>';
+    b.querySelector("i").style.background = "linear-gradient(135deg," + t.sw[0] + "," + t.sw[1] + ")";
+    b.querySelector("span").textContent = ok ? t.name : t.name + " (" + t.need + " achievements)";
+    b.addEventListener("click", () => {
+      if (!ok) { showToast("Unlock " + t.need + " achievements first"); return; }
+      themeId = t.id;
+      store.set("theme", t.id);
+      applyTheme();
+      renderThemes();
+    });
+    themeListEl.appendChild(b);
+  });
+}
+
+// ---------------------------------------------------------------------
+// PROFILE / STATS  (opened from the main menu)
+// ---------------------------------------------------------------------
+function fmtTime(sec) {
+  const m = Math.floor(sec / 60);
+  return m >= 60 ? Math.floor(m / 60) + "h " + (m % 60) + "m" : m + "m " + Math.floor(sec % 60) + "s";
+}
+
+function renderProfile() {
+  const favIdx = collection.made.indexOf(Math.max.apply(null, collection.made));
+  const rows = [
+    ["Games played", stats.games],
+    ["Play time", fmtTime(stats.seconds)],
+    ["Best score", stats.bestScore],
+    ["Biggest sweet", SWEETS[Math.min(LAST, stats.topLevel)].name],
+    ["Total merges", stats.merges],
+    ["Orders filled", stats.orders],
+    ["Best combo", "x" + stats.maxCombo],
+    ["Fever modes", stats.fever],
+    ["Golden merges", stats.golden],
+    ["Bombs used", stats.bombs],
+    ["Sweets unlocked", collectedCount() + " / " + SWEETS.length],
+    ["Most made", collection.made[favIdx] > 0 ? SWEETS[favIdx].name : "-"]
+  ];
+  statGridEl.innerHTML = "";
+  rows.forEach((r) => {
+    const el = document.createElement("div");
+    el.className = "stat-cell";
+    el.innerHTML = "<small></small><b></b>";
+    el.querySelector("small").textContent = r[0];
+    el.querySelector("b").textContent = r[1];
+    statGridEl.appendChild(el);
+  });
+  profileTitleEl.textContent = currentTitle() + "  (" + achievementCount() + " / " + ACHIEVEMENTS.length + " achievements)";
+  renderThemes();
+  updateMusicButtons();
+}
+
+function openProfile() { saveStats(); renderProfile(); profileOverlay.classList.remove("hidden"); }
+function closeProfile() { profileOverlay.classList.add("hidden"); }
+
+function updateMusicButtons() {
+  document.querySelectorAll(".music-toggle span").forEach((el) => { el.textContent = "Music: " + (musicOn ? "On" : "Off"); });
+}
+function toggleMusic() {
+  musicOn = !musicOn;
+  store.set("music", musicOn ? "1" : "0");
+  updateMusicButtons();
+  if (musicOn) ensureAudio();
+}
+
+// ---------------------------------------------------------------------
+// SHARE SCORE CARD  (makes a picture you can send or save)
+// ---------------------------------------------------------------------
+function roundRectPath(c, x, y, w, h, r) {
+  c.beginPath();
+  c.moveTo(x + r, y);
+  c.arcTo(x + w, y, x + w, y + h, r);
+  c.arcTo(x + w, y + h, x, y + h, r);
+  c.arcTo(x, y + h, x, y, r);
+  c.arcTo(x, y, x + w, y, r);
+  c.closePath();
+}
+
+function makeShareCanvas(withImage) {
+  const cv = document.createElement("canvas");
+  cv.width = 600; cv.height = 800;
+  const c = cv.getContext("2d");
+  const th = currentTheme();
+  const g = c.createLinearGradient(0, 0, 0, 800);
+  g.addColorStop(0, th.sw[0]); g.addColorStop(1, "#ffe6f1");
+  c.fillStyle = g; c.fillRect(0, 0, 600, 800);
+  for (let i = 0; i < 26; i++) drawStar(c, (i * 97) % 600, (i * 151) % 800, 5 + (i % 4) * 2, "rgba(255,255,255,0.55)");
+  c.fillStyle = "#fffafc";
+  roundRectPath(c, 40, 50, 520, 700, 36); c.fill();
+  c.lineWidth = 8; c.strokeStyle = th.sw[0]; c.stroke();
+  c.textAlign = "center"; c.textBaseline = "middle"; c.lineJoin = "round";
+  c.font = "900 54px 'Trebuchet MS', 'Segoe UI', sans-serif";
+  c.lineWidth = 10; c.strokeStyle = "#d9407b"; c.strokeText("Sweets Merge", 300, 115);
+  c.fillStyle = "#fff"; c.fillText("Sweets Merge", 300, 115);
+  c.font = "700 24px 'Trebuchet MS', sans-serif"; c.fillStyle = "#7a4d78";
+  c.fillText(LEVELS[level].label + " level", 300, 170);
+  const s = SWEETS[Math.min(LAST, topLevel)];
+  if (withImage && s.imgOk) c.drawImage(s.img, 190, 205, 220, 220);
+  c.font = "700 26px 'Trebuchet MS', sans-serif"; c.fillStyle = "#d9407b";
+  c.fillText("SCORE", 300, 470);
+  c.font = "900 120px 'Trebuchet MS', sans-serif"; c.fillStyle = "#4a2a5a";
+  c.fillText(String(score), 300, 550);
+  c.font = "700 26px 'Trebuchet MS', sans-serif"; c.fillStyle = "#7a4d78";
+  c.fillText("Biggest sweet: " + s.name, 300, 625);
+  c.fillText("Orders filled: " + ordersDone + "   |   Title: " + currentTitle(), 300, 665);
+  c.font = "600 20px 'Trebuchet MS', sans-serif"; c.fillStyle = "#b08ab0";
+  c.fillText(location.host ? location.host + location.pathname.replace(/index\.html$/, "") : "Sweets Merge", 300, 715);
+  return cv;
+}
+
+function shareScore() {
+  let cv;
+  try { cv = makeShareCanvas(true); cv.toDataURL(); }          // throws if the pictures taint the canvas
+  catch (e) { cv = makeShareCanvas(false); }
+  cv.toBlob((blob) => {
+    if (!blob) return;
+    const file = new File([blob], "sweets-merge-score.png", { type: "image/png" });
+    const done = () => {
+      shareBtn.querySelector("span").textContent = "Saved!";
+      setTimeout(() => { shareBtn.querySelector("span").textContent = "Share score card"; }, 1800);
+    };
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      navigator.share({ files: [file], title: "Sweets Merge", text: "I scored " + score + " in Sweets Merge!" }).catch(() => {});
+    } else {
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = "sweets-merge-score.png";
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+      done();
+    }
+  }, "image/png");
 }
 
 // ---------------------------------------------------------------------
@@ -1589,6 +1826,7 @@ function update(dt) {
     if (comboTimer <= 0) combo = 0;
   }
   updateOrders(dt);
+  stats.seconds += dt;
   if (feverT > 0) {
     feverT -= dt;
     fever = Math.max(0, (feverT / FEVER_TIME) * 100);
@@ -1671,7 +1909,7 @@ function render() {
   // jar (glass)
   jarPath(ctx);
   ctx.closePath();
-  ctx.fillStyle = "rgba(255, 255, 255, 0.4)";
+  ctx.fillStyle = currentTheme().glass;
   ctx.fill();
 
   // danger line
@@ -1744,7 +1982,7 @@ function render() {
 
   // jar rim on top
   jarPath(ctx);
-  ctx.strokeStyle = "rgba(255, 150, 185, 0.95)";
+  ctx.strokeStyle = currentTheme().rim;
   ctx.lineWidth = 6;
   ctx.lineCap = "round";
   ctx.lineJoin = "round";
@@ -1825,6 +2063,8 @@ function frame(now) {
 // START
 // ---------------------------------------------------------------------
 updateMuteButton();
+applyTheme();
+updateMusicButtons();
 refreshLadder();
 loadBest();
 levelName.textContent = LEVELS[level].label;

@@ -89,6 +89,20 @@
           <p id="menu-status" class="status" role="status"></p>
           <button id="start-btn" type="button" class="btn btn-main"><svg class="ic"><use href="#i-play"/></svg><span>Play</span></button>
           <p class="menu-best">Best on this level <strong id="menu-best">0</strong></p>
+          <button id="profile-btn" type="button" class="btn btn-small btn-alt"><svg class="ic"><use href="#i-user"/></svg><span>Stats &amp; themes</span></button>
+        </div>
+      </div>
+
+      <div id="profile-overlay" class="overlay hidden">
+        <div class="panel profile-panel">
+          <div class="panel-badge"><svg class="ic"><use href="#i-user"/></svg></div>
+          <h2>Profile</h2>
+          <p class="title-line">Title: <strong id="profile-title"></strong></p>
+          <div id="stat-grid" class="stat-grid"></div>
+          <h3 class="ach-h">Jar themes</h3>
+          <div id="theme-list" class="theme-list"></div>
+          <button type="button" class="btn btn-small music-toggle"><svg class="ic"><use href="#i-sound"/></svg><span>Music: On</span></button>
+          <button id="profile-close" type="button" class="btn btn-alt"><span>Close</span></button>
         </div>
       </div>
 
@@ -163,6 +177,7 @@
           <div class="stack">
             <button id="resume-btn" type="button" class="btn btn-main"><svg class="ic"><use href="#i-play"/></svg><span>Resume</span></button>
             <button id="pause-restart" type="button" class="btn"><svg class="ic"><use href="#i-restart"/></svg><span>Restart</span></button>
+            <button type="button" class="btn music-toggle"><svg class="ic"><use href="#i-sound"/></svg><span>Music: On</span></button>
             <button id="pause-menu" type="button" class="btn btn-alt"><svg class="ic"><use href="#i-home"/></svg><span>Menu</span></button>
           </div>
         </div>
@@ -186,6 +201,8 @@
             <ol id="top-list" class="top-list"></ol>
             <p id="board-status" class="status"></p>
           </div>
+
+          <button id="share-btn" type="button" class="btn btn-small"><svg class="ic"><use href="#i-arrow"/></svg><span>Share score card</span></button>
 
           <div class="row">
             <button id="play-again" type="button" class="btn btn-main"><svg class="ic"><use href="#i-restart"/></svg><span>Again</span></button>
