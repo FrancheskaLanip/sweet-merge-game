@@ -16,7 +16,7 @@ const JAR = { left: 24, right: 376, floor: 610, limit: 150, top: 120 };
 const SPAWN_Y = 92;               // height where the held sweet floats
 const GRAVITY = 1500;             // pixels per second squared
 const RESTITUTION = 0.05;         // bounciness (0 = none)
-const FRICTION = 0.5;             // sliding friction between sweets
+const FRICTION = 0.04;        // sliding friction (low, because real balls roll instead of sticking on slopes)
 const SUBSTEPS = 6;               // physics steps per frame (more = steadier)
 const DROP_COOLDOWN = 0.45;       // seconds between drops
 const GRACE_TIME = 1.0;           // new sweets are ignored for this long
@@ -26,12 +26,31 @@ const SPRITE_FIT = 1.1;           // picture size compared to its circle
 // weights = chance of dropping sweet 0..4.
 // The game ends the moment a settled sweet crosses the dashed line.
 const LEVELS = {
-  easy:   { label: "Easy",   powerEvery: 80,  orders: { slots: 2, time: 1.4 },  weights: [36, 30, 20, 10, 4] },
-  normal: { label: "Normal", powerEvery: 100, orders: { slots: 2, time: 1.0 }, weights: [30, 28, 20, 14, 8] },
-  hard:   { label: "Hard",   powerEvery: 130, orders: { slots: 3, time: 0.8 }, weights: [20, 22, 22, 20, 16] },
-  daily:  { label: "Daily",  powerEvery: 100, orders: { slots: 2, time: 1.0 }, weights: [30, 28, 20, 14, 8], daily: true }
+  easy:   { label: "Easy",   powerEvery: 80,  orders: { slots: 2, time: 1.4 },  weights: [36, 30, 20, 10, 4], desc: "More small sweets. Great for learning." },
+  normal: { label: "Normal", powerEvery: 100, orders: { slots: 2, time: 1.0 }, weights: [30, 28, 20, 14, 8], desc: "The classic mix of sweets." },
+  hard:   { label: "Hard",   powerEvery: 130, orders: { slots: 3, time: 0.8 }, weights: [20, 22, 22, 20, 16], desc: "More big sweets and more orders." },
+  daily:  { label: "Daily",  powerEvery: 100, orders: { slots: 2, time: 1.0 }, weights: [30, 28, 20, 14, 8], daily: true, desc: "Same sweets for everyone today." },
+  attack: { label: "Time Attack", powerEvery: 70, orders: { slots: 2, time: 0.8 }, weights: [30, 28, 20, 14, 8], timer: 90, noLine: true, local: true, desc: "90 seconds, no game over line. Score as much as you can!" },
+  zen:    { label: "Zen",    powerEvery: 80,  orders: { slots: 1, time: 2.0 }, weights: [36, 30, 20, 10, 4], zen: true, noLine: true, local: true, desc: "Relax. No game over: crowded sweets pop away on their own." },
+  mystery:{ label: "Mystery", powerEvery: 100, orders: { slots: 2, time: 1.0 }, weights: [30, 28, 20, 14, 8], mystery: true, local: true, desc: "The next sweet is hidden. Plan ahead!" },
+  puzzle: { label: "Puzzle", powerEvery: 99999, orders: { slots: 0, time: 1 }, weights: [30, 28, 20, 14, 8], puzzle: true, plain: true, local: true }
 };
-const LEVEL_KEYS = ["easy", "normal", "hard", "daily"];
+function modeCfg() { return LEVELS[level]; }   // the settings of the mode being played
+const LEVEL_KEYS = ["easy", "normal", "hard", "daily", "attack", "zen", "mystery"];
+function isLocalBoard(key) { return !!(LEVELS[key] && LEVELS[key].local); }
+
+// Puzzle challenges: the sweets come in the same order every time, so you can plan.
+// Goal: make the target sweet before you run out of drops. Fewer drops = more stars.
+const PUZZLES = [
+  { id: 1, name: "Sprinkle Starter", level: 3, drops: 12 },
+  { id: 2, name: "Dango Dash",       level: 4, drops: 14 },
+  { id: 3, name: "Tiny Bakery",      level: 5, drops: 24 },
+  { id: 4, name: "Cupcake Rush",     level: 5, drops: 18 },
+  { id: 5, name: "Donut Dream",      level: 6, drops: 44 },
+  { id: 6, name: "Tight Squeeze",    level: 6, drops: 34 },
+  { id: 7, name: "Pudding Master",   level: 7, drops: 85 }
+];
+function puzzleStarsFor(p, used) { return used <= Math.ceil(p.drops * 0.6) ? 3 : used <= Math.ceil(p.drops * 0.8) ? 2 : 1; }
 
 // ---------------------------------------------------------------------
 // DAILY CHALLENGE: everybody gets the same sweets in the same order today.
@@ -106,6 +125,18 @@ const scoreEl = document.getElementById("score");
 const bestEl = document.getElementById("best");
 const toastEl = document.getElementById("toast");
 const overlayEl = document.getElementById("overlay");
+const overTitleEl = document.getElementById("over-title");
+const topBoxEl = document.getElementById("top-box");
+const bestLineEl = document.getElementById("best-line");
+const levelDescEl = document.getElementById("level-desc");
+const puzzleOverlay = document.getElementById("puzzle-overlay");
+const puzzleListEl = document.getElementById("puzzle-list");
+const missionListEl = document.getElementById("mission-list");
+const missionCountEl = document.getElementById("mission-count");
+const xpLevelEl = document.getElementById("xp-level");
+const xpFillEl = document.getElementById("xp-fill");
+const xpTextEl = document.getElementById("xp-text");
+const menuLevelEl = document.getElementById("menu-level");
 const profileOverlay = document.getElementById("profile-overlay");
 const statGridEl = document.getElementById("stat-grid");
 const themeListEl = document.getElementById("theme-list");
@@ -165,7 +196,7 @@ const menuBtn = document.getElementById("menu-btn");
 const goMenuBtn = document.getElementById("go-menu");
 const levelName = document.getElementById("level-name");
 const topTitle = document.getElementById("top-title");
-const levelBtns = Array.from(document.querySelectorAll(".level-btn"));
+const levelBtns = Array.from(document.querySelectorAll(".level-btn[data-level]"));
 const tabBtns = Array.from(document.querySelectorAll(".tab"));
 
 // Safe wrapper around localStorage (it can be blocked in some browsers).
@@ -334,6 +365,15 @@ function refreshLadder() {
 
 function drawNext() {
   nextCtx.clearRect(0, 0, 56, 56);
+  if (LEVELS[level].mystery && playing) {
+    nextCtx.fillStyle = "#c9a7ff";
+    nextCtx.beginPath(); nextCtx.arc(28, 28, 20, 0, Math.PI * 2); nextCtx.fill();
+    nextCtx.lineWidth = 3; nextCtx.strokeStyle = "#7b4fd8"; nextCtx.stroke();
+    nextCtx.fillStyle = "#fff"; nextCtx.font = "900 28px 'Trebuchet MS', sans-serif";
+    nextCtx.textAlign = "center"; nextCtx.textBaseline = "middle";
+    nextCtx.fillText("?", 28, 30);
+    return;
+  }
   drawPiece(nextCtx, next, nextSp, 28, 28, nextSp === "bomb" ? 16 : 20, 0, 1);
 }
 
@@ -489,6 +529,9 @@ let dangerRatio = 0;
 let toastTimer = null;
 let paused = false;
 let powers = { swap: 0, shake: 0, pop: 0 };
+let modeTime = 0;           // seconds left in Time Attack
+let eventName = "", eventT = 0, eventTimer = 30, rainT = 0, gravMul = 1;
+let puzzleIdx = 0, puzzleEndT = 0, puzzleOk = false, puzzleUsed = 0, zenToastT = 0;
 let fever = 0;              // 0..100 meter, fills with merges
 let feverT = 0;             // seconds of Fever left (0 = not active)
 let heldSp = null, nextSp = null;   // special sweet types: "golden" | "bomb" | null
@@ -538,7 +581,7 @@ function randomLevel() {
 function rollNext() {
   next = randomLevel();
   nextSp = null;
-  if (dropCount >= 5 && spawnRng() < SPECIAL_CHANCE) {
+  if (dropCount >= 5 && !LEVELS[level].plain && spawnRng() < SPECIAL_CHANCE) {
     if (spawnRng() < 0.5) { nextSp = "golden"; next = 3; }
     else { nextSp = "bomb"; next = 2; }
   }
@@ -583,8 +626,9 @@ function loadBest() {
 function newGame() {
   ensureAudio();
   loadBest();
-  levelName.textContent = LEVELS[level].label;
+  levelName.textContent = LEVELS[level].puzzle ? "Puzzle " + PUZZLES[puzzleIdx].id : LEVELS[level].label;
   menuEl.classList.add("hidden");
+  puzzleOverlay.classList.add("hidden");
   bodies = [];
   particles = [];
   floaters = [];
@@ -597,6 +641,10 @@ function newGame() {
   nextAward = LEVELS[level].powerEvery;
   spawnRng = LEVELS[level].daily ? seededRng("sweets-merge-" + activeBoard) : Math.random;
   orderRng = LEVELS[level].daily ? seededRng("orders-" + activeBoard) : Math.random;
+  if (LEVELS[level].puzzle) { spawnRng = seededRng("puzzle-" + PUZZLES[puzzleIdx].id); }
+  modeTime = LEVELS[level].timer || 0;
+  eventName = ""; eventT = 0; gravMul = 1; eventTimer = 25 + Math.random() * 15; rainT = 0;
+  puzzleEndT = 0; puzzleOk = false; puzzleUsed = 0; zenToastT = 0;
   setPopMode(false);
   updatePowerUI();
   closeBook();
@@ -624,7 +672,18 @@ function endGame() {
   if (LEVELS[level].daily) updateStreak();
   finalScoreEl.textContent = score;
   finalBestEl.textContent = best;
-  ordersDoneEl.textContent = "Orders filled: " + ordersDone;
+  const LM = LEVELS[level];
+  overTitleEl.textContent = LM.puzzle ? (puzzleOk ? "Challenge cleared!" : "Challenge failed") : LM.timer ? "Time's Up!" : "Game Over";
+  topBoxEl.classList.toggle("hidden", !!LM.puzzle);
+  bestLineEl.classList.toggle("hidden", !!LM.puzzle);
+  shareBtn.classList.toggle("hidden", !!LM.puzzle);
+  const xpGain = LM.puzzle ? (puzzleOk ? 40 : 5) : Math.floor(score / 25) + ordersDone * 5;
+  addXp(xpGain);
+  missionEvent("game", 1); missionEvent("score", score);
+  ordersDoneEl.textContent = LM.puzzle
+    ? (puzzleOk ? "Stars: " + puzzleStarsFor(PUZZLES[puzzleIdx], puzzleUsed) + " / 3  (" + puzzleUsed + " drops)  +" + xpGain + " XP" : "Out of drops or the jar filled up. Try again!")
+    : "Orders filled: " + ordersDone + "  |  +" + xpGain + " XP";
+  gravMul = 1; eventName = ""; eventT = 0;
   stats.games++;
   stats.bestScore = Math.max(stats.bestScore, score);
   stats.topLevel = Math.max(stats.topLevel, topLevel);
@@ -636,8 +695,8 @@ function endGame() {
   sfxOver();
 
   finalScore = score;
-  if (score > 0) addLocalScore(playerName || "Player", score);
-  topTitle.textContent = "Top 10 · " + LEVELS[level].label + (LEVELS[level].daily ? " " + dailyLabel() : "");
+  if (score > 0 && !LM.puzzle && !LM.zen) addLocalScore(playerName || "Player", score);
+  topTitle.textContent = (LM.local ? "Best on this device · " : "Top 10 · ") + LEVELS[level].label + (LEVELS[level].daily ? " " + dailyLabel() : "");
   autoSubmit();
   loadTop(topListEl, boardStatusEl, activeBoard);
 }
@@ -690,7 +749,7 @@ function renderList(ol, items) {
 async function loadTop(ol, statusEl, lv) {
   statusEl.textContent = "Loading...";
   const lb = window.Leaderboard;
-  if (lb && lb.ready) {
+  if (lb && lb.ready && !isLocalBoard(lv)) {
     try {
       const items = await lb.getTopScores(10, lv);
       if (ol === boardListEl && lv !== boardKey(boardLevel)) return;   // tab changed while loading
@@ -704,9 +763,9 @@ async function loadTop(ol, statusEl, lv) {
   if (ol === boardListEl && lv !== boardKey(boardLevel)) return;
   const local = getLocalTop(lv);
   renderList(ol, local);
-  statusEl.textContent = local.length
-    ? "Offline: showing the best scores on this device."
-    : "The online leaderboard isn't available right now.";
+  statusEl.textContent = isLocalBoard(lv)
+    ? (local.length ? "Best scores on this device." : "No scores yet. Be the first!")
+    : (local.length ? "Offline: showing the best scores on this device." : "The online leaderboard isn't available right now.");
 }
 
 function cleanName(raw) {
@@ -719,7 +778,7 @@ async function autoSubmit() {
   submitted = false;
   submitBtn.classList.add("hidden");
   const lb = window.Leaderboard;
-  const online = !!(lb && lb.ready);
+  const online = !!(lb && lb.ready) && !LEVELS[level].local;
   submitBox.classList.toggle("hidden", !(online && finalScore > 0));
   submitStatus.textContent = "";
   if (online && finalScore > 0) await sendScore();
@@ -936,10 +995,14 @@ function selectLevel(lv) {
   store.set("level", lv);
   levelBtns.forEach((b) => b.classList.toggle("selected", b.dataset.level === lv));
   menuBest.textContent = Number(store.get("best_" + boardKey(lv))) || 0;
+  levelDescEl.textContent = LEVELS[lv].desc || "";
+  refreshMenuLevel();
   menuDailySub.textContent = dailyLabel() + ": same sweets for everyone" + (streakNow() > 0 ? " · " + streakNow() + "-day streak" : "");
 }
 
 function showMenu() {
+  if (level === "puzzle") level = LEVEL_KEYS.includes(store.get("level")) ? store.get("level") : "normal";
+  puzzleOverlay.classList.add("hidden");
   resetOrders();
   playing = false;
   canDrop = false;
@@ -1069,6 +1132,7 @@ function clampX(x, r) {
 
 function dropSweet() {
   if (!playing || paused || !canDrop) return;
+  if (LEVELS[level].puzzle && dropCount >= PUZZLES[puzzleIdx].drops) return;
   ensureAudio();
   const r = SWEETS[held].r;
   const b = makeBody(held, clampX(aimX, r), SPAWN_Y);
@@ -1147,6 +1211,8 @@ restartBtn.addEventListener("click", () => { if (playerName && menuEl.classList.
 playAgainBtn.addEventListener("click", newGame);
 shareBtn.addEventListener("click", shareScore);
 document.getElementById("profile-btn").addEventListener("click", openProfile);
+document.getElementById("puzzle-open").addEventListener("click", openPuzzles);
+document.getElementById("puzzle-close").addEventListener("click", () => puzzleOverlay.classList.add("hidden"));
 document.getElementById("profile-close").addEventListener("click", closeProfile);
 document.querySelectorAll(".music-toggle").forEach((b) => b.addEventListener("click", toggleMusic));
 submitBtn.addEventListener("click", sendScore);
@@ -1263,7 +1329,7 @@ function resolvePair(a, b, dx, dy, dist, minDist) {
 function physicsStep(h) {
   // move
   for (const b of bodies) {
-    b.vy += GRAVITY * h;
+    b.vy += GRAVITY * gravMul * h;
     b.x += b.vx * h;
     b.y += b.vy * h;
     b.age += h;
@@ -1319,8 +1385,9 @@ function mergePair(a, b) {
   const gold = a.special === "golden" || b.special === "golden";
   if (combo >= COMBO_MAX) unlock("combo5");
   stats.merges++;
+  missionEvent("merge", 1); missionEvent("combo", combo); missionEvent("level", a.level + 1);
   if (combo > stats.maxCombo) stats.maxCombo = combo;
-  if (feverT <= 0) {
+  if (feverT <= 0 && !modeCfg().plain) {
     fever = Math.min(100, fever + 9 + 3 * mult);
     if (fever >= 100) startFever();
   }
@@ -1366,7 +1433,7 @@ function mergePair(a, b) {
     addScore(20);
     floaters.push({ x, y: y - SWEETS[level].r - 14, text: "Golden! +" + 20 * fm, life: 1.2, max: 1.2 });
     burst(x, y, 24, 1.3);
-    stats.golden++; unlock("golden");
+    stats.golden++; unlock("golden"); missionEvent("golden", 1);
   }
   if (collectedCount() >= SWEETS.length) unlock("tooth");
   sfxMerge(Math.min(LAST, level + (mult - 1)));
@@ -1391,7 +1458,7 @@ function startFever() {
   shake = Math.max(shake, 8);
   showToast("FEVER MODE! Double points!");
   sfxPower();
-  stats.fever++; unlock("fever");
+  stats.fever++; unlock("fever"); missionEvent("fever", 1);
 }
 
 function endFever() {
@@ -1428,11 +1495,38 @@ function explodeBomb(bm) {
   if (pts) addScore(pts);
   floaters.push({ x: bm.x, y: bm.y - 20, text: n ? "BOOM +" + pts * (feverT > 0 ? 2 : 1) : "Fizzle", life: 1.2, max: 1.2 });
   showToast(n ? "Bomb Candy popped " + n + " sweets!" : "Bomb Candy fizzled");
-  stats.bombs++;
+  stats.bombs++; missionEvent("bomb", n);
   if (n >= 4) unlock("boom");
 }
 
+function drawModeHud() {
+  const L = LEVELS[level];
+  ctx.save();
+  ctx.font = "900 13px 'Trebuchet MS', 'Segoe UI', sans-serif";
+  ctx.textBaseline = "middle"; ctx.lineJoin = "round"; ctx.lineWidth = 4;
+  const label = (txt, x, y, align, fill, stroke) => {
+    ctx.textAlign = align; ctx.strokeStyle = stroke; ctx.strokeText(txt, x, y); ctx.fillStyle = fill; ctx.fillText(txt, x, y);
+  };
+  if (L.timer) {
+    const t = Math.ceil(modeTime), low = t <= 10;
+    ctx.font = "900 18px 'Trebuchet MS', 'Segoe UI', sans-serif";
+    label(Math.floor(t / 60) + ":" + String(t % 60).padStart(2, "0"), W - 12, 17, "right", low ? "#fff" : "#fff6a8", low ? "#e0245e" : "#7a2f66");
+  }
+  if (L.puzzle) {
+    const p = PUZZLES[puzzleIdx];
+    label("Goal: " + SWEETS[p.level].name, 12, 15, "left", "#fff", "#7a2f66");
+    label("Drops left: " + Math.max(0, p.drops - dropCount), 12, 33, "left", "#fff6a8", "#7a2f66");
+  }
+  if (eventT > 0) {
+    const name = eventName === "sugar" ? "SUGAR RUSH" : "SWEET RAIN";
+    ctx.font = "900 15px 'Trebuchet MS', 'Segoe UI', sans-serif";
+    label(name + "  " + Math.ceil(eventT) + "s", W / 2, 44, "center", "#fff", eventName === "sugar" ? "#d9407b" : "#3a8fd1");
+  }
+  ctx.restore();
+}
+
 function drawFever() {
+  if (LEVELS[level].plain) return;
   const bx = 10, by = 8, bw = 130, bh = 12;
   const f = feverT > 0 ? feverT / FEVER_TIME : fever / 100;
   ctx.save();
@@ -1461,6 +1555,205 @@ function drawFever() {
 }
 
 // ---------------------------------------------------------------------
+// RANDOM EVENTS  (Sugar Rush, Sweet Rain, Boss Order)
+// ---------------------------------------------------------------------
+function updateEvents(dt) {
+  if (LEVELS[level].puzzle) return;
+  if (eventT > 0) {
+    eventT -= dt;
+    if (eventName === "rain") {
+      rainT -= dt;
+      if (rainT <= 0) { rainT = 1.1; if (bodies.length < 45) dropRain(); }
+    }
+    if (eventT <= 0) endEvent();
+    return;
+  }
+  eventTimer -= dt;
+  if (eventTimer <= 0) startEvent();
+}
+
+function startEvent() {
+  const r = Math.random();
+  eventTimer = 35 + Math.random() * 20;
+  if (r < 0.34) {
+    eventName = "sugar"; eventT = 10; gravMul = 0.5;
+    showToast("SUGAR RUSH! Sweets fall slowly");
+  } else if (r < 0.67) {
+    eventName = "rain"; eventT = 8; rainT = 0.5;
+    showToast("SWEET RAIN! Get ready to merge");
+  } else {
+    spawnOrder(true);
+    showToast("BOSS ORDER! Big reward");
+  }
+  sfxPower();
+}
+
+function endEvent() { eventName = ""; eventT = 0; gravMul = 1; }
+
+function dropRain() {
+  const lv = Math.random() < 0.6 ? 0 : 1;
+  const r = SWEETS[lv].r;
+  const b = makeBody(lv, JAR.left + r + Math.random() * (JAR.right - JAR.left - 2 * r), SPAWN_Y - 10);
+  b.vy = 80;
+  bodies.push(b);
+}
+
+// ---------------------------------------------------------------------
+// PUZZLE CHALLENGES
+// ---------------------------------------------------------------------
+function loadPuzzleStars() { return loadJSON("puzzleStars", {}); }
+
+function checkPuzzle(dt) {
+  if (!LEVELS[level].puzzle || !playing) return;
+  const p = PUZZLES[puzzleIdx];
+  if (topLevel >= p.level) { puzzleFinish(true); return; }
+  if (dropCount >= p.drops) {
+    puzzleEndT += dt;
+    if (puzzleEndT > 5) puzzleFinish(false);
+  }
+}
+
+function puzzleFinish(ok) {
+  const p = PUZZLES[puzzleIdx];
+  puzzleOk = ok;
+  puzzleUsed = dropCount;
+  if (ok) {
+    const stars = puzzleStarsFor(p, dropCount);
+    const saved = loadPuzzleStars();
+    if ((saved[p.id] || 0) < stars) { saved[p.id] = stars; store.set("puzzleStars", JSON.stringify(saved)); }
+    unlock("puzzle");
+  }
+  endGame();
+}
+
+function renderPuzzleList() {
+  const saved = loadPuzzleStars();
+  puzzleListEl.innerHTML = "";
+  PUZZLES.forEach((p, i) => {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "puzzle-item";
+    const n = saved[p.id] || 0;
+    b.innerHTML = '<span class="pz-num"></span><span class="pz-text"><b></b><small></small></span><span class="pz-stars"></span>';
+    b.querySelector(".pz-num").textContent = p.id;
+    b.querySelector("b").textContent = p.name;
+    b.querySelector("small").textContent = "Make a " + SWEETS[p.level].name + " in " + p.drops + " drops";
+    b.querySelector(".pz-stars").innerHTML = [1, 2, 3].map((k) => '<svg class="ic' + (k <= n ? " on" : "") + '"><use href="#i-star"/></svg>').join("");
+    b.addEventListener("click", () => startPuzzle(i));
+    puzzleListEl.appendChild(b);
+  });
+}
+
+function openPuzzles() { renderPuzzleList(); puzzleOverlay.classList.remove("hidden"); }
+
+function startPuzzle(i) {
+  const name = cleanName(menuName.value);
+  playerName = name || playerName || "Player";
+  puzzleIdx = i;
+  level = "puzzle";
+  newGame();
+}
+
+// ---------------------------------------------------------------------
+// DAILY MISSIONS + XP LEVELS  (missions reset every day, saved in the browser)
+// ---------------------------------------------------------------------
+const MISSION_POOL = [
+  { id: "merge",   ev: "merge",  kind: "add", target: 40,  text: "Merge 40 sweets" },
+  { id: "orders",  ev: "order",  kind: "add", target: 3,   text: "Fill 3 orders" },
+  { id: "cupcake", ev: "level",  kind: "max", target: 5,   text: "Make a Cupcake" },
+  { id: "combo",   ev: "combo",  kind: "max", target: 3,   text: "Reach a x3 combo" },
+  { id: "score",   ev: "score",  kind: "max", target: 300, text: "Score 300 in one game" },
+  { id: "fever",   ev: "fever",  kind: "add", target: 1,   text: "Start Fever Mode" },
+  { id: "golden",  ev: "golden", kind: "add", target: 1,   text: "Merge a Golden Mochi" },
+  { id: "bomb",    ev: "bomb",   kind: "add", target: 3,   text: "Pop 3 sweets with a Bomb Candy" },
+  { id: "games",   ev: "game",   kind: "add", target: 3,   text: "Play 3 games" }
+];
+const MISSION_XP = 60;
+let progress = Object.assign({ xp: 0, day: "", missions: [] }, loadJSON("progress", {}));
+
+function todayKey() {
+  const d = new Date();
+  return "" + d.getFullYear() + String(d.getMonth() + 1).padStart(2, "0") + String(d.getDate()).padStart(2, "0");
+}
+function saveProgress() { store.set("progress", JSON.stringify(progress)); }
+
+function ensureMissions() {
+  const today = todayKey();
+  if (progress.day === today && progress.missions.length === 3) return;
+  const rng = seededRng("missions-" + today);
+  const pool = MISSION_POOL.slice();
+  const list = [];
+  while (list.length < 3) {
+    const m = pool.splice(Math.floor(rng() * pool.length), 1)[0];
+    list.push({ id: m.id, progress: 0, done: false });
+  }
+  progress.day = today;
+  progress.missions = list;
+  saveProgress();
+}
+
+function levelInfo(xp) {
+  let lv = 1, need = 100;
+  while (xp >= need) { xp -= need; lv++; need += 50; }
+  return { lv, cur: xp, need };
+}
+
+function addXp(n) {
+  if (n <= 0) return;
+  const before = levelInfo(progress.xp).lv;
+  progress.xp += n;
+  saveProgress();
+  const after = levelInfo(progress.xp).lv;
+  if (after > before) setTimeout(() => showToast("Level up! You are level " + after), 1500);
+}
+
+function missionEvent(ev, value) {
+  ensureMissions();
+  let changed = false;
+  progress.missions.forEach((m) => {
+    if (m.done) return;
+    const def = MISSION_POOL.find((d) => d.id === m.id);
+    if (!def || def.ev !== ev) return;
+    m.progress = def.kind === "add" ? m.progress + value : Math.max(m.progress, value);
+    changed = true;
+    if (m.progress >= def.target) {
+      m.progress = def.target;
+      m.done = true;
+      addXp(MISSION_XP);
+      showToast("Mission complete: " + def.text + "! +" + MISSION_XP + " XP");
+      if (progress.missions.every((x) => x.done)) { unlock("grind"); }
+    }
+  });
+  if (changed) saveProgress();
+}
+
+function renderMissions() {
+  ensureMissions();
+  missionListEl.innerHTML = "";
+  let doneN = 0;
+  progress.missions.forEach((m) => {
+    const def = MISSION_POOL.find((d) => d.id === m.id);
+    if (m.done) doneN++;
+    const el = document.createElement("div");
+    el.className = "mission" + (m.done ? " done" : "");
+    el.innerHTML = '<div class="m-top"><b></b><span></span></div><div class="m-bar"><i></i></div>';
+    el.querySelector("b").textContent = def.text;
+    el.querySelector("span").textContent = m.done ? "Done +" + MISSION_XP + " XP" : m.progress + " / " + def.target;
+    el.querySelector("i").style.width = Math.min(100, (m.progress / def.target) * 100) + "%";
+    missionListEl.appendChild(el);
+  });
+  missionCountEl.textContent = doneN + " / 3";
+  const li = levelInfo(progress.xp);
+  xpLevelEl.textContent = "Lv " + li.lv;
+  xpFillEl.style.width = (li.cur / li.need) * 100 + "%";
+  xpTextEl.textContent = li.cur + " / " + li.need + " XP";
+}
+
+function refreshMenuLevel() {
+  menuLevelEl.textContent = "Lv " + levelInfo(progress.xp).lv + " · " + currentTitle();
+}
+
+// ---------------------------------------------------------------------
 // ACHIEVEMENTS + TITLES  (saved in localStorage, shown in the collection book)
 // ---------------------------------------------------------------------
 const ACHIEVEMENTS = [
@@ -1473,7 +1766,10 @@ const ACHIEVEMENTS = [
   { id: "combo5",       name: "Combo King",     desc: "Reach a x5 combo." },
   { id: "cake",         name: "Cake Boss",      desc: "Merge two Birthday Cakes." },
   { id: "tooth",        name: "Sweet Tooth",    desc: "Unlock every sweet in the collection." },
-  { id: "score500",     name: "Half Thousand",  desc: "Score 500 points in one game." }
+  { id: "score500",     name: "Half Thousand",  desc: "Score 500 points in one game." },
+  { id: "boss",         name: "Boss Slayer",    desc: "Fill a Boss Order." },
+  { id: "puzzle",       name: "Puzzle Solver",  desc: "Clear a puzzle challenge." },
+  { id: "grind",        name: "Daily Grind",    desc: "Finish all 3 daily missions in one day." }
 ];
 const TITLES = ["Apprentice", "Home Baker", "Pastry Chef", "Head Chef", "Sweet Legend", "Grand Master"];
 
@@ -1594,6 +1890,7 @@ function renderProfile() {
     el.querySelector("b").textContent = r[1];
     statGridEl.appendChild(el);
   });
+  renderMissions();
   profileTitleEl.textContent = currentTitle() + "  (" + achievementCount() + " / " + ACHIEVEMENTS.length + " achievements)";
   renderThemes();
   updateMusicButtons();
@@ -1705,14 +2002,16 @@ function pickOrderTarget() {
   return { target, need };
 }
 
-function spawnOrder() {
+function spawnOrder(boss) {
   const cfg = LEVELS[level].orders;
-  const { target, need } = pickOrderTarget();
-  const seconds = (50 + target * 8 + need * 12) * cfg.time;
-  const o = { id: ++orderId, level: target, need, have: 0, time: seconds, max: seconds };
+  let target, need;
+  if (boss) { target = Math.max(2, Math.min(LAST - 2, topLevel)); need = target >= 5 ? 2 : 3; }
+  else ({ target, need } = pickOrderTarget());
+  const seconds = (50 + target * 8 + need * 12) * (cfg.time || 1) * (boss ? 1.4 : 1);
+  const o = { id: ++orderId, level: target, need, have: 0, time: seconds, max: seconds, boss: !!boss };
 
   const el = document.createElement("div");
-  el.className = "ticket";
+  el.className = "ticket" + (boss ? " boss" : "");
   const img = document.createElement("img");
   img.src = SWEETS[target].image;
   img.alt = SWEETS[target].name;
@@ -1721,7 +2020,7 @@ function spawnOrder() {
   txt.className = "t-text";
   const nm = document.createElement("span");
   nm.className = "t-name";
-  nm.textContent = SWEETS[target].name;
+  nm.textContent = (boss ? "Boss: " : "") + SWEETS[target].name;
   const pr = document.createElement("span");
   pr.className = "t-prog";
   const bar = document.createElement("i");
@@ -1748,12 +2047,12 @@ function removeOrder(o, cls) {
   o.el.classList.add(cls);
   setTimeout(() => { if (o.el.parentNode) o.el.parentNode.removeChild(o.el); updateOrdersEmpty(); }, 450);
   orderTimer = Math.min(orderTimer, ORDER_GAP);
-  if (orders.length === LEVELS[level].orders.slots - 1) orderTimer = ORDER_GAP;
+  if (orders.filter((x) => !x.boss).length === LEVELS[level].orders.slots - 1) orderTimer = ORDER_GAP;
 }
 
 function updateOrders(dt) {
   const slots = LEVELS[level].orders.slots;
-  if (orders.length < slots) {
+  if (orders.filter((x) => !x.boss).length < slots) {
     orderTimer -= dt;
     if (orderTimer <= 0) { spawnOrder(); orderTimer = ORDER_GAP + 4; }
   }
@@ -1783,8 +2082,8 @@ function orderMade(lv) {
   }
   // order finished
   ordersDone++;
-  stats.orders++; unlock("first_order"); if (stats.orders >= 15) unlock("master_baker");
-  const reward = Math.max(12, Math.round(SWEETS[match.level].points * match.need * 3));
+  stats.orders++; missionEvent("order", 1); unlock("first_order"); if (stats.orders >= 15) unlock("master_baker");
+  const reward = Math.max(12, Math.round(SWEETS[match.level].points * match.need * 3)) * (match.boss ? 2 : 1);
   addScore(reward);
   const b = bodies[bodies.length - 1];
   floaters.push({ x: b ? b.x : W / 2, y: b ? b.y - 30 : 200, text: "Order +" + reward, life: 1.3, max: 1.3 });
@@ -1792,7 +2091,8 @@ function orderMade(lv) {
   showToast("Order filled! +" + reward);
   sfxOrderDone();
   flash = Math.max(flash, 0.25);
-  if (ordersDone % 2 === 0) grantPower();    // every second order also gives a power-up
+  if (match.boss) { grantPower(); unlock("boss"); }
+  else if (ordersDone % 2 === 0) grantPower();    // every second order also gives a power-up
 }
 
 // ---------------------------------------------------------------------
@@ -1827,6 +2127,12 @@ function update(dt) {
   }
   updateOrders(dt);
   stats.seconds += dt;
+  if (LEVELS[level].timer) {
+    modeTime -= dt;
+    if (modeTime <= 0) { modeTime = 0; endGame(); return; }
+  }
+  updateEvents(dt);
+  checkPuzzle(dt);
   if (feverT > 0) {
     feverT -= dt;
     fever = Math.max(0, (feverT / FEVER_TIME) * 100);
@@ -1875,9 +2181,18 @@ function update(dt) {
     if (b.age <= GRACE_TIME) continue;     // freshly dropped or merged sweets are ignored while they fall
     const top = b.y - b.r;
     if (feverT > 0) continue;                              // Fever mode: the line is safe
+    if (top < JAR.limit && LEVELS[level].noLine) {        // Time Attack / Zen: crowded sweets pop away
+      b.dead = true;
+      burst(b.x, b.y, 12, 1);
+      if (LEVELS[level].zen) addScore(SWEETS[b.level].points);
+      if (zenToastT <= 0) { showToast("Crowded sweets popped!"); zenToastT = 4; }
+      continue;
+    }
     if (top < JAR.limit) { endGame(); return; }          // crossed the line: game over right away
     if (top < JAR.limit + 40) danger = true;              // close to the line: warning
   }
+  bodies = bodies.filter((b) => !b.dead);
+  if (zenToastT > 0) zenToastT -= dt;
   dangerRatio = danger ? 1 : 0;
 }
 
@@ -1995,7 +2310,7 @@ function render() {
   }
   ctx.globalAlpha = 1;
 
-  if (playing) drawFever();
+  if (playing) { drawFever(); drawModeHud(); }
 
   // flash when something big happens
   if (flash > 0) {
