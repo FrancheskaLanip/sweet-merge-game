@@ -11,18 +11,18 @@ This project was built for a class requirement to develop a game or system and h
 The images below were captured on a phone-sized screen. The game is designed for both phones and computers.
 
 <p align="center">
-  <img src="screenshots/1-start-screen.png" width="200" alt="Start screen with game modes" />
-  <img src="screenshots/2-gameplay.png" width="200" alt="Gameplay with a bakery order" />
-  <img src="screenshots/3-collection.png" width="200" alt="Collection book and achievements" />
+  <img src="screenshots/1-start-screen.jpg" width="200" alt="Start screen with game modes" />
+  <img src="screenshots/2-gameplay.jpg" width="200" alt="Gameplay with a bakery order" />
+  <img src="screenshots/3-collection.jpg" width="200" alt="Collection book and achievements" />
 </p>
 <p align="center">
-  <img src="screenshots/4-leaderboard.png" width="200" alt="Online leaderboard" />
-  <img src="screenshots/5-game-over.png" width="200" alt="Game over with share score card" />
-  <img src="screenshots/6-fever-mode.png" width="200" alt="Fever mode" />
+  <img src="screenshots/4-leaderboard.jpg" width="200" alt="Online leaderboard" />
+  <img src="screenshots/5-game-over.jpg" width="200" alt="Game over with share score card" />
+  <img src="screenshots/6-fever-mode.jpg" width="200" alt="Fever mode" />
 </p>
 <p align="center">
-  <img src="screenshots/7-challenges.png" width="200" alt="Puzzle challenges" />
-  <img src="screenshots/8-profile.png" width="200" alt="Profile with daily missions and XP" />
+  <img src="screenshots/7-challenges.jpg" width="200" alt="Puzzle challenges" />
+  <img src="screenshots/8-profile.jpg" width="200" alt="Profile with daily missions and XP" />
 </p>
 
 | Picture | What it shows |
