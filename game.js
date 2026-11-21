@@ -1361,68 +1361,6 @@ function resolvePair(a, b, dx, dy, dist, minDist) {
   }
 }
 
-// Un-jam helper: a sweet that is wedged between others, but still has room to
-// fall somewhere nearby, gets a small hop toward that spot so it can drop.
-function spotFree(b, x, y) {
-  if (x - b.r < JAR.left || x + b.r > JAR.right || y + b.r > JAR.floor) return false;
-  for (const o of bodies) {
-    if (o === b || o.dead || o.merging) continue;
-    const dx = o.x - x, dy = o.y - y, m = o.r + b.r - 0.5;
-    if (dx * dx + dy * dy < m * m) return false;
-  }
-  return true;
-}
-// How far could this sweet drop if it moved sideways by "off" and then fell straight down?
-// Only counts a spot if the whole way down is clear, so we never chase a hole we can't reach.
-function dropGain(b, off) {
-  const x = b.x + off;
-  let lowest = null;
-  for (let y = b.y + 3; y + b.r <= JAR.floor + 0.01; y += 3) {
-    if (spotFree(b, x, y)) lowest = y; else break;
-  }
-  return lowest === null ? 0 : lowest - b.y;
-}
-function unjam(dt) {
-  for (const b of bodies) {
-    if (b.merging || b.dead) continue;
-    if (b.y + b.r >= JAR.floor - 1.5) { b.refT = 0; b.kicks = 0; b.driftT = 0; continue; }
-
-    // A sweet that is already being helped keeps rolling slowly (a soft push, not a kick).
-    if (b.driftT > 0) {
-      b.driftT -= dt;
-      if (Math.abs(b.vx) < 40) b.vx += b.driftDir * 200 * dt;
-      if (b.y > b.nudgeY + b.r * 0.3) b.driftT = 0;   // it is dropping now, stop pushing
-      continue;
-    }
-
-    // "Resting" = barely moved for a while. Judged by position, not speed,
-    // because sweets sitting in a pile always jitter a little and look fast.
-    if (b.refX === undefined || Math.hypot(b.x - b.refX, b.y - b.refY) > 2) {
-      b.refX = b.x; b.refY = b.y; b.refT = 0;
-      continue;
-    }
-    b.refT += dt;
-    if (b.refT < 0.7 || b.age < 1) continue;      // wait a bit: most sweets settle by themselves
-    b.refT = 0;
-    if ((b.kicks || 0) >= 6) continue;
-
-    // Only help when the sweet could really drop a good way (at least half its own
-    // radius) and the spot is close. Small gaps beside it are left alone.
-    let best = null, gain = b.r * 0.5;
-    for (let off = -b.r; off <= b.r; off += b.r / 2) {
-      if (off === 0) continue;
-      const g = dropGain(b, off);
-      if (g > gain) { gain = g; best = off; }
-    }
-    if (best !== null) {
-      b.kicks = (b.kicks || 0) + 1;
-      b.nudgeY = b.y;
-      b.driftDir = Math.sign(best);
-      b.driftT = 0.6;
-    }
-  }
-}
-
 function physicsStep(h) {
   // move
   for (const b of bodies) {
@@ -2259,7 +2197,6 @@ function update(dt) {
 
   const h = dt / SUBSTEPS;
   for (let i = 0; i < SUBSTEPS; i++) physicsStep(h);
-  unjam(dt);
 
   const popFade = Math.exp(-10 * dt);
   for (const b of bodies) b.pop *= popFade;
