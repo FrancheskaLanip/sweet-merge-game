@@ -610,11 +610,11 @@ function addScore(n) {
   }
 }
 
-function showToast(text) {
+function showToast(text, ms) {
   toastEl.textContent = text;
   toastEl.classList.add("show");
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => toastEl.classList.remove("show"), 1800);
+  toastTimer = setTimeout(() => toastEl.classList.remove("show"), ms || 1800);
 }
 
 function loadBest() {
@@ -1207,6 +1207,41 @@ muteBtn.addEventListener("click", () => {
   updateMuteButton();
   if (!muted) ensureAudio();
 });
+// ---- Fullscreen button (hides the browser address bar on phones) ----
+// Android and desktop use the Fullscreen API. iPhone Safari does not allow it,
+// so there the button explains "Add to Home Screen", which opens the game fullscreen.
+const fsBtn = document.getElementById("fs-btn");
+const fsRoot = document.documentElement;
+const fsRequest = fsRoot.requestFullscreen || fsRoot.webkitRequestFullscreen;
+const fsExit = document.exitFullscreen || document.webkitExitFullscreen;
+const isStandalone = (window.matchMedia && window.matchMedia("(display-mode: standalone)").matches) || window.navigator.standalone === true;
+function fsActive() { return !!(document.fullscreenElement || document.webkitFullscreenElement); }
+function updateFsButton() {
+  const on = fsActive();
+  fsBtn.innerHTML = '<svg class="ic"><use href="#' + (on ? "i-shrink" : "i-expand") + '"/></svg>';
+  fsBtn.setAttribute("aria-label", on ? "Exit fullscreen" : "Fullscreen");
+  fsBtn.title = on ? "Exit fullscreen" : "Fullscreen";
+  setTimeout(fitMainCanvas, 120);
+}
+if (isStandalone) {
+  fsBtn.hidden = true;                      // already opened as an app, nothing to hide
+} else {
+  fsBtn.addEventListener("click", () => {
+    if (!fsRequest) {
+      showToast("iPhone: tap Share, then Add to Home Screen, to play fullscreen", 4200);
+      return;
+    }
+    if (fsActive()) {
+      if (fsExit) fsExit.call(document);
+    } else {
+      const res = fsRequest.call(fsRoot, { navigationUI: "hide" });
+      if (res && res.catch) res.catch(() => showToast("Fullscreen is not allowed here"));
+    }
+  });
+  document.addEventListener("fullscreenchange", updateFsButton);
+  document.addEventListener("webkitfullscreenchange", updateFsButton);
+}
+
 restartBtn.addEventListener("click", () => { if (playerName && menuEl.classList.contains("hidden")) newGame(); });
 playAgainBtn.addEventListener("click", newGame);
 shareBtn.addEventListener("click", shareScore);
@@ -1337,27 +1372,46 @@ function spotFree(b, x, y) {
   }
   return true;
 }
+// How far could this sweet drop if it moved sideways by "off" and then fell straight down?
+// Only counts a spot if the whole way down is clear, so we never chase a hole we can't reach.
+function dropGain(b, off) {
+  const x = b.x + off;
+  let lowest = null;
+  for (let y = b.y + 3; y + b.r <= JAR.floor + 0.01; y += 3) {
+    if (spotFree(b, x, y)) lowest = y; else break;
+  }
+  return lowest === null ? 0 : lowest - b.y;
+}
 function unjam(dt) {
   for (const b of bodies) {
     if (b.merging || b.dead) continue;
-    const speed = Math.hypot(b.vx, b.vy);
-    if (speed > 40) { b.restT = 0; b.kicks = 0; continue; }
-    if (b.y + b.r >= JAR.floor - 1.5) { b.restT = 0; continue; }
-    b.restT = (b.restT || 0) + dt;
-    if (b.restT < 0.7 || (b.kicks || 0) >= 5 || b.age < 1) continue;
+    if (b.y + b.r >= JAR.floor - 1.5) { b.restT = 0; b.kicks = 0; b.refT = 0; continue; }
+    // "Resting" = barely moved for a short while. Judged by position, not speed,
+    // because sweets sitting in a pile always jitter a little and look fast.
+    if (b.refX === undefined || Math.hypot(b.x - b.refX, b.y - b.refY) > 2) {
+      b.refX = b.x; b.refY = b.y; b.refT = 0;
+      continue;
+    }
+    b.refT += dt;
+    if (b.refT < 0.3 || b.age < 1) continue;
+    // it counts as a fresh try once the sweet has really dropped since the last nudge
+    if (b.nudgeY !== undefined && b.y > b.nudgeY + b.r * 0.25) { b.kicks = 0; b.nudgeY = undefined; }
+    b.refT = 0;
+    if ((b.kicks || 0) >= 10) continue;
     let best = null, gain = b.r * 0.3;
     for (let off = -2 * b.r; off <= 2 * b.r; off += b.r / 2) {
       if (off === 0) continue;
-      const x = b.x + off;
-      let lowest = null;
-      for (let y = b.y + 3; y + b.r <= JAR.floor + 0.01; y += 3) { if (spotFree(b, x, y)) lowest = y; }
-      if (lowest !== null && lowest - b.y > gain) { gain = lowest - b.y; best = off; }
+      const g = dropGain(b, off);
+      if (g > gain) { gain = g; best = off; }
     }
-    b.restT = -0.5;
     if (best !== null) {
+      // Gentle sideways roll toward the free spot so the sweet just drops down.
+      // No jump: the push stays flat. Only if the sweet is really wedged (a few
+      // nudges did nothing) it gets a tiny lift, less than half a pixel, to free it.
       b.kicks = (b.kicks || 0) + 1;
-      b.vx = Math.sign(best) * 110;
-      b.vy = -150;
+      if (b.nudgeY === undefined) b.nudgeY = b.y;
+      b.vx = Math.sign(best) * 70;
+      if (b.kicks >= 3) b.vy = -30;
     }
   }
 }

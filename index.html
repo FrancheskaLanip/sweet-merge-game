@@ -3,8 +3,13 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Sweets Merge" />
+  <meta name="theme-color" content="#ffd9e8" />
   <title>Sweets Merge</title>
-  <link rel="stylesheet" href="./style.css?v=20261120" />
+  <link rel="stylesheet" href="./style.css?v=20261121" />
 </head>
 <body>
   <!-- Icon set (inline SVG, no emoji) -->
@@ -24,6 +29,8 @@
       <symbol id="i-pause" viewBox="0 0 24 24"><rect x="5.5" y="4" width="4.6" height="16" rx="1.6" fill="currentColor"/><rect x="13.9" y="4" width="4.6" height="16" rx="1.6" fill="currentColor"/></symbol>
       <symbol id="i-book" viewBox="0 0 24 24"><path d="M4 4.5A2.5 2.5 0 0 1 6.5 2H19v17H6.5A2.5 2.5 0 0 0 4 21.5v-17z" fill="currentColor"/><path d="M4 21.5A2.5 2.5 0 0 1 6.5 19H19v3H6.5A2.5 2.5 0 0 1 4 21.5z" fill="currentColor" opacity=".6"/><path d="M8.5 6.5h7M8.5 10h5" stroke="var(--detail, #fff)" stroke-width="1.8" stroke-linecap="round" opacity=".85"/></symbol>
       <symbol id="i-help" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="currentColor"/><path d="M9.2 9.3a2.9 2.9 0 1 1 4.4 2.5c-.9.6-1.6 1.1-1.6 2.2" fill="none" stroke="var(--detail, #fff)" stroke-width="2.2" stroke-linecap="round"/><circle cx="12" cy="17.4" r="1.4" fill="var(--detail, #fff)"/></symbol>
+      <symbol id="i-expand" viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+      <symbol id="i-shrink" viewBox="0 0 24 24"><path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/></symbol>
       <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M12 3v14M5 11l7 8 7-8" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></symbol>
       <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round"/></symbol>
       <symbol id="i-eq" viewBox="0 0 24 24"><path d="M5 9h14M5 15h14" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round"/></symbol>
@@ -262,6 +269,7 @@
         <button id="board-btn" type="button" class="icon-btn" aria-label="Leaderboard" title="Leaderboard"><svg class="ic"><use href="#i-trophy"/></svg></button>
         <button id="restart" type="button" class="icon-btn" aria-label="Restart" title="Restart"><svg class="ic"><use href="#i-restart"/></svg></button>
         <button id="menu-btn" type="button" class="icon-btn" aria-label="Menu" title="Menu"><svg class="ic"><use href="#i-home"/></svg></button>
+        <button id="fs-btn" type="button" class="icon-btn" aria-label="Fullscreen" title="Fullscreen"><svg class="ic"><use href="#i-expand"/></svg></button>
       </nav>
     </div>
 
@@ -273,7 +281,7 @@
     <p class="help">Move or drag to aim, tap to drop. Keyboard: Left / Right, Space, P to pause. Merge fast for combos and earn power-ups! If a sweet crosses the dashed line, the game ends.</p>
   </main>
 
-  <script src="./game.js?v=20261120"></script>
+  <script src="./game.js?v=20261121"></script>
   <script type="module" src="./leaderboard.js?v=20261120"></script>
 </body>
 </html>
