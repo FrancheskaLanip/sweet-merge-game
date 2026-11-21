@@ -1385,33 +1385,40 @@ function dropGain(b, off) {
 function unjam(dt) {
   for (const b of bodies) {
     if (b.merging || b.dead) continue;
-    if (b.y + b.r >= JAR.floor - 1.5) { b.restT = 0; b.kicks = 0; b.refT = 0; continue; }
-    // "Resting" = barely moved for a short while. Judged by position, not speed,
+    if (b.y + b.r >= JAR.floor - 1.5) { b.refT = 0; b.kicks = 0; b.driftT = 0; continue; }
+
+    // A sweet that is already being helped keeps rolling slowly (a soft push, not a kick).
+    if (b.driftT > 0) {
+      b.driftT -= dt;
+      if (Math.abs(b.vx) < 40) b.vx += b.driftDir * 200 * dt;
+      if (b.y > b.nudgeY + b.r * 0.3) b.driftT = 0;   // it is dropping now, stop pushing
+      continue;
+    }
+
+    // "Resting" = barely moved for a while. Judged by position, not speed,
     // because sweets sitting in a pile always jitter a little and look fast.
     if (b.refX === undefined || Math.hypot(b.x - b.refX, b.y - b.refY) > 2) {
       b.refX = b.x; b.refY = b.y; b.refT = 0;
       continue;
     }
     b.refT += dt;
-    if (b.refT < 0.3 || b.age < 1) continue;
-    // it counts as a fresh try once the sweet has really dropped since the last nudge
-    if (b.nudgeY !== undefined && b.y > b.nudgeY + b.r * 0.25) { b.kicks = 0; b.nudgeY = undefined; }
+    if (b.refT < 0.7 || b.age < 1) continue;      // wait a bit: most sweets settle by themselves
     b.refT = 0;
-    if ((b.kicks || 0) >= 10) continue;
-    let best = null, gain = b.r * 0.3;
-    for (let off = -2 * b.r; off <= 2 * b.r; off += b.r / 2) {
+    if ((b.kicks || 0) >= 6) continue;
+
+    // Only help when the sweet could really drop a good way (at least half its own
+    // radius) and the spot is close. Small gaps beside it are left alone.
+    let best = null, gain = b.r * 0.5;
+    for (let off = -b.r; off <= b.r; off += b.r / 2) {
       if (off === 0) continue;
       const g = dropGain(b, off);
       if (g > gain) { gain = g; best = off; }
     }
     if (best !== null) {
-      // Gentle sideways roll toward the free spot so the sweet just drops down.
-      // No jump: the push stays flat. Only if the sweet is really wedged (a few
-      // nudges did nothing) it gets a tiny lift, less than half a pixel, to free it.
       b.kicks = (b.kicks || 0) + 1;
-      if (b.nudgeY === undefined) b.nudgeY = b.y;
-      b.vx = Math.sign(best) * 70;
-      if (b.kicks >= 3) b.vy = -30;
+      b.nudgeY = b.y;
+      b.driftDir = Math.sign(best);
+      b.driftT = 0.6;
     }
   }
 }
